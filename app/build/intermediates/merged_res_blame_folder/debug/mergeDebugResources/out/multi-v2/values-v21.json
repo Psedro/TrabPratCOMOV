@@ -4,7 +4,7 @@
             "outputFile": "com.example.estagios.app-mergeDebugResources-52:/values-v21/values-v21.xml",
             "map": [
                 {
-                    "source": "/Users/danielgoncalves/.gradle/caches/9.2.1/transforms/0db3efe99db652682494e3908d4815fb/transformed/core-1.15.0/res/values-v21/values-v21.xml",
+                    "source": "C:\\Users\\guiba\\.gradle\\caches\\9.2.1\\transforms\\0db3efe99db652682494e3908d4815fb\\workspace\\transformed\\core-1.15.0\\res\\values-v21\\values-v21.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,13",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4",

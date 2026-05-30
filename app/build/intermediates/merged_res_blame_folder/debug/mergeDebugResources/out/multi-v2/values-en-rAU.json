@@ -4,7 +4,7 @@
             "outputFile": "com.example.estagios.app-mergeDebugResources-52:/values-en-rAU/values-en-rAU.xml",
             "map": [
                 {
-                    "source": "/Users/danielgoncalves/.gradle/caches/9.2.1/transforms/04773f6458890554ee0d47f878e67047/transformed/ui-release/res/values-en-rAU/values-en-rAU.xml",
+                    "source": "C:\\Users\\guiba\\.gradle\\caches\\9.2.1\\transforms\\04773f6458890554ee0d47f878e67047\\workspace\\transformed\\ui-release\\res\\values-en-rAU\\values-en-rAU.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
@@ -21,24 +21,7 @@
                     }
                 },
                 {
-                    "source": "/Users/danielgoncalves/.gradle/caches/9.2.1/transforms/0db3efe99db652682494e3908d4815fb/transformed/core-1.15.0/res/values-en-rAU/values-en-rAU.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,151,253,352,451,555,658,774",
-                        "endColumns": "95,101,98,98,103,102,115,100",
-                        "endOffsets": "146,248,347,446,550,653,769,870"
-                    },
-                    "to": {
-                        "startLines": "2,3,4,5,6,7,8,81",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "105,201,303,402,501,605,708,8187",
-                        "endColumns": "95,101,98,98,103,102,115,100",
-                        "endOffsets": "196,298,397,496,600,703,819,8283"
-                    }
-                },
-                {
-                    "source": "/Users/danielgoncalves/.gradle/caches/9.2.1/transforms/1248ae1ec3b2cdc08b59d319eb7a7ac8/transformed/foundation-release/res/values-en-rAU/values-en-rAU.xml",
+                    "source": "C:\\Users\\guiba\\.gradle\\caches\\9.2.1\\transforms\\1248ae1ec3b2cdc08b59d319eb7a7ac8\\workspace\\transformed\\foundation-release\\res\\values-en-rAU\\values-en-rAU.xml",
                     "from": {
                         "startLines": "2,3",
                         "startColumns": "4,4",
@@ -55,7 +38,24 @@
                     }
                 },
                 {
-                    "source": "/Users/danielgoncalves/.gradle/caches/9.2.1/transforms/e6d034b7c5620cbf74e57cb1e27792b1/transformed/material3-release/res/values-en-rAU/values-en-rAU.xml",
+                    "source": "C:\\Users\\guiba\\.gradle\\caches\\9.2.1\\transforms\\0db3efe99db652682494e3908d4815fb\\workspace\\transformed\\core-1.15.0\\res\\values-en-rAU\\values-en-rAU.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,151,253,352,451,555,658,774",
+                        "endColumns": "95,101,98,98,103,102,115,100",
+                        "endOffsets": "146,248,347,446,550,653,769,870"
+                    },
+                    "to": {
+                        "startLines": "2,3,4,5,6,7,8,81",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "105,201,303,402,501,605,708,8187",
+                        "endColumns": "95,101,98,98,103,102,115,100",
+                        "endOffsets": "196,298,397,496,600,703,819,8283"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\guiba\\.gradle\\caches\\9.2.1\\transforms\\e6d034b7c5620cbf74e57cb1e27792b1\\workspace\\transformed\\material3-release\\res\\values-en-rAU\\values-en-rAU.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
