@@ -20,24 +20,68 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.estagios.model.Oferta
-import com.example.estagios.model.SampleData
+import com.example.estagios.data.remote.InternshipOfferResponse
+import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.ui.theme.Azul
 import com.example.estagios.ui.theme.TextoEmpresa
 import com.example.estagios.ui.theme.TextoSecundario
 
+//ligar o botao candidatar
+import com.example.estagios.data.remote.CreateApplicationRequest
+import kotlinx.coroutines.launch
+import retrofit2.HttpException
+
 @Composable
 fun OfertasScreen(
     onVoltar: () -> Unit,
-    onCandidatar: (Oferta) -> Unit = {}
+    onCandidatar: (InternshipOfferResponse) -> Unit = {}
 ) {
     var pesquisa by remember { mutableStateOf("") }
-    var ofertaSelecionada by remember { mutableStateOf<Oferta?>(null) }
+    var ofertaSelecionada by remember { mutableStateOf<InternshipOfferResponse?>(null) }
+    var ofertas by remember { mutableStateOf<List<InternshipOfferResponse>>(emptyList()) }
+    var erro by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    val ofertasFiltradas = SampleData.ofertas.filter {
+    fun candidatar(oferta: InternshipOfferResponse) {
+        scope.launch {
+            try {
+                val response = RetrofitClient.apiService.createApplication(
+                    CreateApplicationRequest(
+                        internshipOfferId = oferta._id
+                    )
+                )
+
+                snackbarHostState.showSnackbar(response.message)
+                onCandidatar(oferta)
+            } catch (e: HttpException) {
+                if (e.code() == 409) {
+                    snackbarHostState.showSnackbar("Já existe uma candidatura para esta oferta")
+                } else {
+                    snackbarHostState.showSnackbar("Erro ao criar candidatura")
+                }
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Erro: ${e.message}")
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        try {
+            ofertas = RetrofitClient.apiService.getInternshipOffers()
+            erro = null
+        } catch (e: Exception) {
+            erro = e.message
+        } finally {
+            isLoading = false
+        }
+    }
+
+    val ofertasFiltradas = ofertas.filter {
         pesquisa.isEmpty() ||
-        it.titulo.contains(pesquisa, ignoreCase = true) ||
-        it.empresa.contains(pesquisa, ignoreCase = true)
+                it.name.contains(pesquisa, ignoreCase = true) ||
+                (it.companyName ?: "").contains(pesquisa, ignoreCase = true)
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
@@ -48,7 +92,6 @@ fun OfertasScreen(
                 onVoltar = onVoltar
             )
 
-            // Barra de pesquisa
             OutlinedTextField(
                 value = pesquisa,
                 onValueChange = { pesquisa = it },
@@ -67,38 +110,74 @@ fun OfertasScreen(
                 singleLine = true
             )
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(ofertasFiltradas) { oferta ->
-                    OfertaCard(
-                        oferta = oferta,
-                        onVerDetalhes = { ofertaSelecionada = oferta },
-                        onCandidatar = { onCandidatar(oferta) }
-                    )
+            when {
+                isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Azul)
+                    }
+                }
+
+                erro != null -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Erro ao carregar ofertas: $erro")
+                    }
+                }
+
+                ofertasFiltradas.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Sem ofertas disponíveis")
+                    }
+                }
+
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(ofertasFiltradas) { oferta ->
+                            OfertaCard(
+                                oferta = oferta,
+                                onVerDetalhes = { ofertaSelecionada = oferta },
+                                onCandidatar = { candidatar(oferta) }
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        // Dialog de detalhe
         ofertaSelecionada?.let { oferta ->
             DetalheOfertaDialog(
                 oferta = oferta,
                 onDismiss = { ofertaSelecionada = null },
                 onCandidatar = {
-                    onCandidatar(oferta)
+                    candidatar(oferta)
                     ofertaSelecionada = null
                 }
             )
         }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
+        )
     }
 }
 
 @Composable
 fun OfertaCard(
-    oferta: Oferta,
+    oferta: InternshipOfferResponse,
     onVerDetalhes: () -> Unit,
     onCandidatar: () -> Unit
 ) {
@@ -108,32 +187,29 @@ fun OfertaCard(
             .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(16.dp))
             .padding(16.dp)
     ) {
-        Text(oferta.titulo, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF2B5CE6))
+        Text(oferta.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF2B5CE6))
         Spacer(modifier = Modifier.height(2.dp))
-        Text(oferta.empresa, fontSize = 14.sp, color = TextoEmpresa)
+        Text(oferta.companyName ?: "Empresa não definida", fontSize = 14.sp, color = TextoEmpresa)
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = oferta.descricao.take(120) + "...",
+            text = oferta.description.take(120) + "...",
             fontSize = 13.sp,
             color = Color.Black,
             lineHeight = 18.sp
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Tags
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            oferta.tags.forEach { tag ->
-                TagChip(tag)
-            }
+            TagChip(oferta.workModel ?: "Modelo não definido")
+            TagChip("Vagas: ${oferta.totalSpots}")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Info linha
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            InfoItem(Icons.Outlined.LocationOn, oferta.localizacao)
-            InfoItem(Icons.Outlined.CalendarMonth, oferta.duracao)
-            InfoItem(Icons.Outlined.Group, oferta.vagas)
+            InfoItem(Icons.Outlined.LocationOn, oferta.location ?: "Localização")
+            InfoItem(Icons.Outlined.CalendarMonth, "${oferta.durationInMonths} meses")
+            InfoItem(Icons.Outlined.Group, "${oferta.totalSpots} pessoas")
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -180,7 +256,7 @@ fun InfoItem(icon: androidx.compose.ui.graphics.vector.ImageVector, texto: Strin
 
 @Composable
 fun DetalheOfertaDialog(
-    oferta: Oferta,
+    oferta: InternshipOfferResponse,
     onDismiss: () -> Unit,
     onCandidatar: () -> Unit
 ) {
@@ -190,36 +266,38 @@ fun DetalheOfertaDialog(
                 .fillMaxWidth()
                 .background(Color.White, RoundedCornerShape(20.dp))
         ) {
-            // Header da lista (ecrã por baixo)
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(oferta.titulo, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF2B5CE6))
-                Text(oferta.empresa, fontSize = 14.sp, color = TextoEmpresa)
+                Text(oferta.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF2B5CE6))
+                Text(oferta.companyName ?: "Empresa não definida", fontSize = 14.sp, color = TextoEmpresa)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(oferta.descricao.take(120) + "...", fontSize = 13.sp)
+                Text(oferta.description.take(120) + "...", fontSize = 13.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    oferta.tags.forEach { TagChip(it) }
+                    TagChip(oferta.workModel ?: "Modelo não definido")
+                    TagChip("Vagas: ${oferta.totalSpots}")
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    InfoItem(Icons.Outlined.LocationOn, oferta.localizacao)
-                    InfoItem(Icons.Outlined.CalendarMonth, oferta.duracao)
-                    InfoItem(Icons.Outlined.Group, oferta.vagas)
+                    InfoItem(Icons.Outlined.LocationOn, oferta.location ?: "Localização")
+                    InfoItem(Icons.Outlined.CalendarMonth, "${oferta.durationInMonths} meses")
+                    InfoItem(Icons.Outlined.Group, "${oferta.totalSpots} pessoas")
                 }
             }
 
-            // Card de detalhe expandido
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F0F0))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(oferta.titulo, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF2B5CE6))
+                    Text(oferta.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF2B5CE6))
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(oferta.empresa, fontSize = 13.sp, color = TextoEmpresa)
+                    Text(oferta.companyName ?: "Empresa não definida", fontSize = 13.sp, color = TextoEmpresa)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(oferta.descricao, fontSize = 13.sp, lineHeight = 18.sp)
+                    Text(oferta.description, fontSize = 13.sp, lineHeight = 18.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Requisitos:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(oferta.requirements, fontSize = 13.sp, lineHeight = 18.sp)
                 }
             }
 
@@ -235,7 +313,7 @@ fun DetalheOfertaDialog(
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555))
                 ) {
-                    Text("Ver detalhes", fontSize = 13.sp)
+                    Text("Fechar", fontSize = 13.sp)
                 }
                 Button(
                     onClick = onCandidatar,

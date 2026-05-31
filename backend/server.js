@@ -145,6 +145,168 @@ app.get("/applications", async (req, res) => {
   }
 });
 
+app.post("/applications", async (req, res) => {
+  try {
+    const internshipOfferId = req.body.internshipOfferId;
+
+    if (!internshipOfferId) {
+      return res.status(400).json({
+        message: "internshipOfferId é obrigatório"
+      });
+    }
+
+    const role = await db.collection("roles").findOne({ name: "student" });
+
+    let address = await db.collection("addresses").findOne({
+      street: "Rua do Estudante Teste"
+    });
+
+    if (!address) {
+      const addressResult = await db.collection("addresses").insertOne({
+        street: "Rua do Estudante Teste",
+        buildingNumber: "1",
+        city: "Viana do Castelo",
+        postalCode: "4900-000"
+      });
+
+      address = { _id: addressResult.insertedId };
+    }
+
+    let user = await db.collection("users").findOne({
+      email: "pedro.sousa@alunos.ipvc.pt"
+    });
+
+    if (!user) {
+      const userResult = await db.collection("users").insertOne({
+        firstName: "Pedro",
+        lastName: "Sousa",
+        email: "pedro.sousa@alunos.ipvc.pt",
+        passwordHash: "123456",
+        status: "active",
+        roleId: role._id,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      user = { _id: userResult.insertedId };
+    }
+
+    let student = await db.collection("students").findOne({
+      userId: user._id
+    });
+
+    if (!student) {
+      const studentResult = await db.collection("students").insertOne({
+        userId: user._id,
+        indexNumber: 12345,
+        studyYear: 3,
+        degreeLevel: "Licenciatura",
+        addressId: address._id,
+        mainCvId: null
+      });
+
+      student = { _id: studentResult.insertedId };
+    }
+
+    const existingApplication = await db.collection("applications").findOne({
+      studentId: student._id,
+      internshipOfferId: new ObjectId(internshipOfferId)
+    });
+
+    if (existingApplication) {
+      return res.status(409).json({
+        message: "Já existe uma candidatura para esta oferta"
+      });
+    }
+
+    const application = {
+      appliedDate: new Date(),
+      status: "pending",
+      coverLetter: req.body.coverLetter || "Candidatura submetida através da aplicação móvel.",
+      availableFrom: req.body.availableFrom ? new Date(req.body.availableFrom) : new Date(),
+      portfolioUrl: req.body.portfolioUrl || "",
+      cvDocumentId: null,
+      studentId: student._id,
+      internshipOfferId: new ObjectId(internshipOfferId)
+    };
+
+    const result = await db.collection("applications").insertOne(application);
+
+    res.status(201).json({
+      message: "Candidatura criada com sucesso",
+      insertedId: result.insertedId
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Erro ao criar candidatura",
+      error: error.message
+    });
+  }
+});
+
+app.get("/student-applications", async (req, res) => {
+  try {
+    const user = await db.collection("users").findOne({
+      email: "pedro.sousa@alunos.ipvc.pt"
+    });
+
+    if (!user) {
+      return res.json([]);
+    }
+
+    const student = await db.collection("students").findOne({
+      userId: user._id
+    });
+
+    if (!student) {
+      return res.json([]);
+    }
+
+    const applications = await db.collection("applications").aggregate([
+      {
+        $match: {
+          studentId: student._id
+        }
+      },
+      {
+        $lookup: {
+          from: "internshipOffers",
+          localField: "internshipOfferId",
+          foreignField: "_id",
+          as: "offer"
+        }
+      },
+      {
+        $unwind: "$offer"
+      },
+      {
+        $project: {
+          _id: { $toString: "$_id" },
+          status: 1,
+          appliedDate: 1,
+          cvName: "CV_Pedro_Sousa.pdf",
+          offerTitle: "$offer.name",
+          companyName: "$offer.companyName",
+          offerDescription: "$offer.description",
+          location: "$offer.location"
+        }
+      },
+      {
+        $sort: {
+          appliedDate: -1
+        }
+      }
+    ]).toArray();
+
+    res.json(applications);
+  } catch (error) {
+    res.status(500).json({
+      message: "Erro ao buscar candidaturas do aluno",
+      error: error.message
+    });
+  }
+});
+
 connectToMongo().then(() => {
   app.listen(PORT, () => {
     console.log(`Servidor a correr em http://localhost:${PORT}`);
