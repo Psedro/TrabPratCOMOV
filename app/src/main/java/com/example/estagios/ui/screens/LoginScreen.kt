@@ -24,7 +24,7 @@ import com.example.estagios.ui.theme.TextoSecundario
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
+    onLoginSuccess: (email: String, password: String) -> Unit,
     onRegistar: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
@@ -112,7 +112,9 @@ fun LoginScreen(
 
             // Botão Entrar
             Button(
-                onClick = onLoginSuccess,
+                onClick = {
+                    onLoginSuccess(email, palavraPasse)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -133,7 +135,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Botão Google
+            /*// Botão Google
             OutlinedButton(
                 onClick = { },
                 modifier = Modifier
@@ -163,7 +165,7 @@ fun LoginScreen(
                 Text("Entrar com Facebook", fontWeight = FontWeight.SemiBold, color = Color.Black)
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))*/
 
             // Link de registo
             Row(horizontalArrangement = Arrangement.Center) {

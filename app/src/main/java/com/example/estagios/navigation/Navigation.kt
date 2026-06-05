@@ -2,6 +2,7 @@ package com.example.estagios.navigation
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
+    object Registo : Screen("registo")
     object Home : Screen("home")
     object Ofertas : Screen("ofertas")
     object Candidaturas : Screen("candidaturas")

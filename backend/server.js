@@ -1,3 +1,4 @@
+const bcrypt = require("bcryptjs");
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ObjectId } = require("mongodb");
@@ -302,6 +303,124 @@ app.get("/student-applications", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Erro ao buscar candidaturas do aluno",
+      error: error.message
+    });
+  }
+});
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { nome, email, username, password } = req.body;
+
+    if (!nome || !email || !username || !password) {
+      return res.status(400).json({
+        message: "Todos os campos são obrigatórios"
+      });
+    }
+
+    const existingUser = await db.collection("users").findOne({
+      $or: [
+        { email: email },
+        { username: username }
+      ]
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        message: "Email ou username já existe"
+      });
+    }
+
+    let role = await db.collection("roles").findOne({
+      name: "student"
+    });
+
+    if (!role) {
+      const roleResult = await db.collection("roles").insertOne({
+        name: "student",
+        label: "Aluno",
+        createdAt: new Date()
+      });
+
+      role = {
+        _id: roleResult.insertedId,
+        name: "student",
+        label: "Aluno"
+      };
+    }
+
+    const user = {
+      firstName: nome,
+      lastName: "",
+      username: username,
+      email: email,
+      passwordHash: await bcrypt.hash(password, 10),
+      status: "active",
+      roleId: role._id,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await db.collection("users").insertOne(user);
+
+    res.status(201).json({
+      message: "Utilizador registado com sucesso",
+      user: {
+        id: result.insertedId.toString(),
+        nome: nome,
+        email: email,
+        username: username
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Erro ao registar utilizador",
+      error: error.message
+    });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Email e password são obrigatórios"
+      });
+    }
+
+    const user = await db.collection("users").findOne({
+      email: email
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Email ou password inválidos"
+      });
+    }
+
+    const passwordValida = await bcrypt.compare(password, user.passwordHash);
+
+    if (!passwordValida) {
+      return res.status(401).json({
+        message: "Email ou password inválidos"
+      });
+    }
+
+    res.json({
+      message: "Login efetuado com sucesso",
+      user: {
+        id: user._id.toString(),
+        nome: user.firstName,
+        email: user.email,
+        username: user.username,
+        roleId: user.roleId?.toString()
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Erro ao fazer login",
       error: error.message
     });
   }

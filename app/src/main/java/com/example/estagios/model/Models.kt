@@ -83,3 +83,38 @@ object SampleData {
         Mensagem(6, "ok", "10:12", true)
     )
 }
+data class RegisterRequest(
+    val nome: String,
+    val email: String,
+    val username: String,
+    val password: String
+)
+
+data class RegisterResponse(
+    val message: String,
+    val user: RegisteredUser? = null
+)
+
+data class RegisteredUser(
+    val id: String,
+    val nome: String,
+    val email: String,
+    val username: String
+)
+data class LoginRequest(
+    val email: String,
+    val password: String
+)
+
+data class LoginResponse(
+    val message: String,
+    val user: LoggedUser? = null
+)
+
+data class LoggedUser(
+    val id: String,
+    val nome: String?,
+    val email: String,
+    val username: String?,
+    val roleId: String?
+)
