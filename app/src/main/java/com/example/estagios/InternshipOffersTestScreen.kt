@@ -15,7 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.estagios.data.remote.InternshipOfferResponse
+import com.example.estagios.model.InternshipOfferResponse
 import com.example.estagios.data.remote.RetrofitClient
 
 @Composable
@@ -25,9 +25,15 @@ fun InternshipOffersTestScreen() {
 
     LaunchedEffect(Unit) {
         try {
-            offers = RetrofitClient.apiService.getInternshipOffers()
+            val response = RetrofitClient.apiService.getInternshipOffers()
+
+            if (response.isSuccessful) {
+                offers = response.body() ?: emptyList()
+            } else {
+                error = "Erro ao carregar ofertas"
+            }
         } catch (e: Exception) {
-            error = e.message
+            error = "Erro de ligação ao servidor"
         }
     }
 
@@ -45,11 +51,11 @@ fun InternshipOffersTestScreen() {
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text(text = offer.name)
+                        Text(text = offer.name ?: "Oferta sem título")
                         Text(text = offer.companyName ?: "Empresa não definida")
                         Text(text = offer.location ?: "Localização não definida")
                         Text(text = offer.workModel ?: "Modelo não definido")
-                        Text(text = offer.description)
+                        Text(text = offer.description ?: "Sem descrição")
                     }
                 }
             }

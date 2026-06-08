@@ -7,7 +7,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.estagios.data.remote.RetrofitClient
-import com.example.estagios.model.RegisterRequest
 import com.example.estagios.ui.screens.*
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
@@ -70,17 +69,10 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
 
         composable(Screen.Registo.route) {
             RegistoScreen(
-                onRegistar = { nome, email, username, password ->
+                onRegistar = { pedidoRegisto ->
                     scope.launch {
                         try {
-                            val response = RetrofitClient.apiService.register(
-                                RegisterRequest(
-                                    nome = nome,
-                                    email = email,
-                                    username = username,
-                                    password = password
-                                )
-                            )
+                            val response = RetrofitClient.apiService.register(pedidoRegisto)
 
                             if (response.isSuccessful) {
                                 Toast.makeText(
@@ -105,6 +97,9 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                             ).show()
                         }
                     }
+                },
+                onVoltarLogin = {
+                    navController.popBackStack()
                 }
             )
         }

@@ -87,7 +87,29 @@ data class RegisterRequest(
     val nome: String,
     val email: String,
     val username: String,
-    val password: String
+    val password: String,
+    val tipo: String,
+
+    val estudante: StudentRegisterData? = null,
+    val professor: ProfessorRegisterData? = null,
+    val empresa: EmpresaRegisterData? = null
+)
+
+data class StudentRegisterData(
+    val numeroAluno: String,
+    val curso: String,
+    val ano: String
+)
+
+data class ProfessorRegisterData(
+    val numeroProfessor: String,
+    val departamento: String
+)
+
+data class EmpresaRegisterData(
+    val nomeEmpresa: String,
+    val website: String,
+    val descricao: String
 )
 
 data class RegisterResponse(
@@ -99,7 +121,9 @@ data class RegisteredUser(
     val id: String,
     val nome: String,
     val email: String,
-    val username: String
+    val username: String,
+    val tipo: String? = null,
+    val roleId: String? = null
 )
 data class LoginRequest(
     val email: String,
@@ -116,5 +140,27 @@ data class LoggedUser(
     val nome: String?,
     val email: String,
     val username: String?,
-    val roleId: String?
+    val roleId: String?,
+    val tipo: String?
+)
+
+enum class TipoUtilizadorRegisto(
+    val label: String,
+    val valorApi: String
+) {
+    ESTUDANTE("Estudante", "student"),
+    PROFESSOR("Professor", "teacher"),
+    EMPRESA("Empresa", "company")
+}
+
+data class InternshipOfferResponse(
+    val _id: String? = null,
+    val name: String? = null,
+    val companyName: String? = null,
+    val location: String? = null,
+    val workModel: String? = null,
+    val description: String? = null,
+    val requirements: String? = null,
+    val totalSpots: Int? = null,
+    val durationInMonths: Int? = null
 )

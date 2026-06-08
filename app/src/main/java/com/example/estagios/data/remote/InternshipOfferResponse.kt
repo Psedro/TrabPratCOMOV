@@ -1,6 +1,6 @@
 package com.example.estagios.data.remote
 
-data class InternshipOfferResponse(
+data class RegisterRequestInternshipOfferResponse(
     val _id: String,
     val name: String,
     val description: String,
