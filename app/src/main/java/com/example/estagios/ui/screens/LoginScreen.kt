@@ -1,6 +1,5 @@
-package com.example.estagios.ui.screens
+﻿package com.example.estagios.ui.screens
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -31,7 +30,6 @@ fun LoginScreen(
     var palavraPasse by remember { mutableStateOf("") }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Ícone de idioma no canto superior direito
         IconButton(
             onClick = { },
             modifier = Modifier
@@ -55,7 +53,6 @@ fun LoginScreen(
                 modifier = Modifier.padding(bottom = 40.dp)
             )
 
-            // Campo Email
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     "Email",
@@ -63,6 +60,7 @@ fun LoginScreen(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(bottom = 6.dp)
                 )
+
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
@@ -82,7 +80,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Campo Palavra-Passe
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     "Palavra-Passe",
@@ -90,6 +87,7 @@ fun LoginScreen(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(bottom = 6.dp)
                 )
+
                 OutlinedTextField(
                     value = palavraPasse,
                     onValueChange = { palavraPasse = it },
@@ -110,11 +108,8 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Botão Entrar
             Button(
-                onClick = {
-                    onLoginSuccess(email, palavraPasse)
-                },
+                onClick = { onLoginSuccess(email, palavraPasse) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -135,41 +130,9 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            /*// Botão Google
-            OutlinedButton(
-                onClick = { },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDDDDDD))
-            ) {
-                Text("G", fontWeight = FontWeight.Bold, color = Color(0xFF4285F4), fontSize = 18.sp)
-                Spacer(modifier = Modifier.width(10.dp))
-                Text("Entrar com Google", fontWeight = FontWeight.SemiBold, color = Color.Black)
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Botão Facebook
-            OutlinedButton(
-                onClick = { },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDDDDDD))
-            ) {
-                Text("f", fontWeight = FontWeight.Bold, color = Color(0xFF1877F2), fontSize = 20.sp)
-                Spacer(modifier = Modifier.width(10.dp))
-                Text("Entrar com Facebook", fontWeight = FontWeight.SemiBold, color = Color.Black)
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))*/
-
-            // Link de registo
             Row(horizontalArrangement = Arrangement.Center) {
                 Text("Não tens conta? ", color = TextoSecundario, fontSize = 14.sp)
+
                 TextButton(onClick = onRegistar, contentPadding = PaddingValues(0.dp)) {
                     Text(
                         "Regista-te",

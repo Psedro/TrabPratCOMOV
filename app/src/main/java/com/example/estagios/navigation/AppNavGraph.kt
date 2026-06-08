@@ -2,21 +2,23 @@ package com.example.estagios.navigation
 
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.estagios.data.remote.AuthSession
 import com.example.estagios.data.remote.RetrofitClient
-import com.example.estagios.ui.screens.*
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.LocalContext
 import com.example.estagios.model.LoginRequest
+import com.example.estagios.ui.screens.*
 import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
     NavHost(
         navController = navController,
         startDestination = Screen.Login.route
@@ -33,7 +35,9 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                                 )
                             )
 
-                            if (response.isSuccessful) {
+                            if (response.isSuccessful && response.body()?.user != null) {
+                                AuthSession.iniciarSessao(response.body()!!.user!!)
+
                                 Toast.makeText(
                                     context,
                                     "Login efetuado com sucesso!",
@@ -77,11 +81,15 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                             if (response.isSuccessful) {
                                 Toast.makeText(
                                     context,
-                                    "Registo criado com sucesso!",
+                                    "Registo criado com sucesso! Faz login para entrar.",
                                     Toast.LENGTH_SHORT
                                 ).show()
 
-                                navController.popBackStack()
+                                navController.navigate(Screen.Login.route) {
+                                    popUpTo(Screen.Registo.route) {
+                                        inclusive = true
+                                    }
+                                }
                             } else {
                                 Toast.makeText(
                                     context,
@@ -115,9 +123,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         composable(Screen.Ofertas.route) {
             OfertasScreen(
                 onVoltar = { navController.popBackStack() },
-                onCandidatar = { oferta ->
-                    // Lógica de candidatura
-                }
+                onCandidatar = { }
             )
         }
 

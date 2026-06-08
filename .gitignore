@@ -1,4 +1,4 @@
-# Android / Gradle
+﻿# Android / Gradle
 .gradle/
 build/
 */build/
@@ -11,6 +11,7 @@ local.properties
 # Node backend
 backend/node_modules/
 backend/.env
+backend/.idea/
 
 # Logs
 *.log
