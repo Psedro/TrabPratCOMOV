@@ -308,20 +308,93 @@ app.get("/student-applications", async (req, res) => {
   }
 });
 
+function separarNomeCompleto(nome) {
+  const partes = (nome || "").trim().split(/\s+/);
+
+  const firstName = partes.shift() || "";
+  const lastName = partes.join(" ");
+
+  return {
+    firstName,
+    lastName
+  };
+}
+
+function obterLabelRole(tipo) {
+  switch (tipo) {
+    case "student":
+      return "Estudante";
+    case "teacher":
+      return "Professor";
+    case "company":
+      return "Empresa";
+    default:
+      return "Utilizador";
+  }
+}
+
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { nome, email, username, password } = req.body;
+    const {
+      nome,
+      email,
+      username,
+      password,
+      tipo,
+      estudante,
+      professor,
+      empresa
+    } = req.body;
+    console.log("BODY REGISTER:", req.body);
+    console.log("TIPO RECEBIDO:", tipo);
+    console.log("DADOS ESTUDANTE:", estudante);
+    console.log("Portoooo");
 
-    if (!nome || !email || !username || !password) {
+    if (!nome || !email || !username || !password || !tipo) {
       return res.status(400).json({
-        message: "Todos os campos são obrigatórios"
+        message: "Nome, email, username, password e tipo são obrigatórios"
       });
     }
 
+    const tiposValidos = ["student", "teacher", "company"];
+
+    if (!tiposValidos.includes(tipo)) {
+      return res.status(400).json({
+        message: "Tipo de utilizador inválido"
+      });
+    }
+
+    if (tipo === "student") {
+      if (!estudante || !estudante.numeroAluno || !estudante.curso || !estudante.ano) {
+        return res.status(400).json({
+          message: "Dados do estudante incompletos"
+        });
+      }
+    }
+
+    if (tipo === "teacher") {
+      if (!professor || !professor.numeroProfessor || !professor.departamento) {
+        return res.status(400).json({
+          message: "Dados do professor incompletos"
+        });
+      }
+    }
+
+    if (tipo === "company") {
+      if (!empresa || !empresa.nomeEmpresa) {
+        return res.status(400).json({
+          message: "Dados da empresa incompletos"
+        });
+      }
+    }
+
+    const emailNormalizado = email.trim().toLowerCase();
+    const usernameNormalizado = username.trim();
+
     const existingUser = await db.collection("users").findOne({
       $or: [
-        { email: email },
-        { username: username }
+        { email: emailNormalizado },
+        { username: usernameNormalizado }
       ]
     });
 
@@ -332,28 +405,41 @@ app.post("/api/auth/register", async (req, res) => {
     }
 
     let role = await db.collection("roles").findOne({
-      name: "student"
+      name: tipo
     });
 
     if (!role) {
       const roleResult = await db.collection("roles").insertOne({
-        name: "student",
-        label: "Aluno",
-        createdAt: new Date()
+        name: tipo,
+        description: obterLabelRole(tipo),
+        createdAt: new Date(),
+        updatedAt: new Date()
       });
 
       role = {
         _id: roleResult.insertedId,
-        name: "student",
-        label: "Aluno"
+        name: tipo,
+        description: obterLabelRole(tipo)
       };
     }
 
+    let firstName;
+    let lastName;
+
+    if (tipo === "company") {
+      firstName = empresa.nomeEmpresa.trim();
+      lastName = "";
+    } else {
+      const nomeSeparado = separarNomeCompleto(nome);
+      firstName = nomeSeparado.firstName;
+      lastName = nomeSeparado.lastName;
+    }
+
     const user = {
-      firstName: nome,
-      lastName: "",
-      username: username,
-      email: email,
+      firstName,
+      lastName,
+      username: usernameNormalizado,
+      email: emailNormalizado,
       passwordHash: await bcrypt.hash(password, 10),
       status: "active",
       roleId: role._id,
@@ -361,15 +447,63 @@ app.post("/api/auth/register", async (req, res) => {
       updatedAt: new Date()
     };
 
-    const result = await db.collection("users").insertOne(user);
+    const userResult = await db.collection("users").insertOne(user);
+    const userId = userResult.insertedId;
+
+    if (tipo === "student") {
+      console.log("VOU INSERIR STUDENT");
+
+      try {
+        const studentData = {
+          userId: userId,
+          indexNumber: Number(estudante.numeroAluno),
+          studyYear: Number(estudante.ano),
+          degreeLevel: "Licenciatura",
+          addressId: new ObjectId("6a1ba421a0d6e4ac5d8c263b"),
+          mainCvId: null
+        };
+
+        console.log("DADOS A INSERIR EM STUDENTS:", studentData);
+
+        const resultStudent = await db.collection("students").insertOne(studentData);
+
+        console.log("STUDENT INSERIDO COM ID:", resultStudent.insertedId);
+      } catch (err) {
+        console.error("ERRO AO INSERIR STUDENT:", err);
+      }
+    }
+
+    if (tipo === "teacher") {
+      await db.collection("teachers").insertOne({
+        userId: userId,
+        teacherNumber: professor.numeroProfessor,
+        department: professor.departamento,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    }
+
+    if (tipo === "company") {
+      await db.collection("companies").insertOne({
+        ownerUserId: userId,
+        name: empresa.nomeEmpresa,
+        website: empresa.website || "",
+        description: empresa.descricao || "",
+        industryIds: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    }
 
     res.status(201).json({
       message: "Utilizador registado com sucesso",
       user: {
-        id: result.insertedId.toString(),
-        nome: nome,
-        email: email,
-        username: username
+        id: userId.toString(),
+        nome: tipo === "company" ? empresa.nomeEmpresa : nome,
+        email: emailNormalizado,
+        username: usernameNormalizado,
+        tipo: tipo,
+        roleId: role._id.toString()
       }
     });
   } catch (error) {
@@ -408,14 +542,19 @@ app.post("/api/auth/login", async (req, res) => {
       });
     }
 
+    const role = await db.collection("roles").findOne({
+      _id: user.roleId
+    });
+
     res.json({
       message: "Login efetuado com sucesso",
       user: {
         id: user._id.toString(),
-        nome: user.firstName,
+        nome: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
         email: user.email,
         username: user.username,
-        roleId: user.roleId?.toString()
+        roleId: user.roleId?.toString(),
+        tipo: role?.name || null
       }
     });
   } catch (error) {

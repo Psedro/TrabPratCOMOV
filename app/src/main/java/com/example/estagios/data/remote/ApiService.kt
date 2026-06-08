@@ -8,6 +8,7 @@ import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Body
 import retrofit2.http.POST
+import com.example.estagios.model.InternshipOfferResponse
 
 interface ApiService {
 
@@ -18,7 +19,7 @@ interface ApiService {
     suspend fun getRoles(): List<RoleResponse>
 
     @GET("internship-offers")
-    suspend fun getInternshipOffers(): List<InternshipOfferResponse>
+    suspend fun getInternshipOffers(): Response<List<InternshipOfferResponse>>
 
     @POST("applications")
     suspend fun createApplication(
