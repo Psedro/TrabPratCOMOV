@@ -1,22 +1,26 @@
 package com.example.estagios.navigation
 
 import android.widget.Toast
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.estagios.data.remote.RetrofitClient
-import com.example.estagios.ui.screens.*
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.LocalContext
 import com.example.estagios.model.LoginRequest
+import com.example.estagios.ui.screens.*
 import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    var nomeUtilizador by remember { mutableStateOf("") }
+    var tipoUtilizador by remember { mutableStateOf<TipoUtilizador?>(null) }
+    var userId by remember { mutableStateOf("") }
+
     NavHost(
         navController = navController,
         startDestination = Screen.Login.route
@@ -34,6 +38,18 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                             )
 
                             if (response.isSuccessful) {
+                                val user = response.body()?.user
+
+                                nomeUtilizador = user?.nome ?: "UTILIZADOR"
+                                userId = user?.id ?: ""
+
+                                tipoUtilizador = when (user?.tipo) {
+                                    "student" -> TipoUtilizador.ALUNO
+                                    "teacher" -> TipoUtilizador.DOCENTE
+                                    "company" -> TipoUtilizador.EMPRESA
+                                    else -> TipoUtilizador.ALUNO
+                                }
+
                                 Toast.makeText(
                                     context,
                                     "Login efetuado com sucesso!",
@@ -106,17 +122,76 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
 
         composable(Screen.Home.route) {
             HomeScreen(
-                onVerOfertas = { navController.navigate(Screen.Ofertas.route) },
-                onMinhasCandidaturas = { navController.navigate(Screen.Candidaturas.route) },
-                onMensagens = { navController.navigate(Screen.Mensagens.route) }
+                tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
+                nomeUtilizador = nomeUtilizador,
+
+                onVerOfertas = {
+                    navController.navigate(Screen.Ofertas.route)
+                },
+                onMinhasCandidaturas = {
+                    navController.navigate(Screen.Candidaturas.route)
+                },
+
+                onOfertasEstagio = {
+                    navController.navigate(Screen.Ofertas.route)
+                },
+                onEstagiosOrientados = {
+                    navController.navigate(Screen.Candidaturas.route)
+                },
+
+                onCriarOferta = {
+                    navController.navigate(Screen.CriarOferta.route)
+                },
+                onVerCandidaturas = {
+                    navController.navigate(Screen.Candidaturas.route)
+                },
+                onMinhasOfertas = {
+                    navController.navigate(Screen.Ofertas.route)
+                },
+
+                onMensagens = {
+                    navController.navigate(Screen.Mensagens.route)
+                },
+                onLogout = {
+                    nomeUtilizador = ""
+                    tipoUtilizador = null
+
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0)
+                    }
+                }
             )
         }
 
         composable(Screen.Ofertas.route) {
             OfertasScreen(
+                nomeUtilizador = nomeUtilizador.ifBlank { "ALUNO" },
+                userId = userId,
+                onVoltar = {
+                    navController.popBackStack()
+                },
+                onLogout = {
+                    nomeUtilizador = ""
+                    userId = ""
+                    tipoUtilizador = null
+
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0)
+                    }
+                }
+            )
+        }
+        composable(Screen.CriarOferta.route) {
+            CriarOfertaScreen(
+                nomeUtilizador = nomeUtilizador,
                 onVoltar = { navController.popBackStack() },
-                onCandidatar = { oferta ->
-                    // Lógica de candidatura
+                onLogout = {
+                    nomeUtilizador = ""
+                    tipoUtilizador = null
+
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0)
+                    }
                 }
             )
         }

@@ -25,27 +25,69 @@ import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.ui.theme.Azul
 import com.example.estagios.ui.theme.TextoEmpresa
 import com.example.estagios.ui.theme.TextoSecundario
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.example.estagios.utils.toTextRequestBody
+import com.example.estagios.utils.uriToMultipart
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-//ligar o botao candidatar
-import com.example.estagios.data.remote.CreateApplicationRequest
+
+import com.example.estagios.ui.common.ProfileTopBar
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
 @Composable
 fun OfertasScreen(
+    nomeUtilizador: String,
+    userId: String,
     onVoltar: () -> Unit,
+    onLogout: () -> Unit,
     onCandidatar: (InternshipOfferResponse) -> Unit = {}
 ) {
     var pesquisa by remember { mutableStateOf("") }
     var ofertaSelecionada by remember { mutableStateOf<InternshipOfferResponse?>(null) }
+    var ofertaCandidatura by remember { mutableStateOf<InternshipOfferResponse?>(null) }
+    var cvUri by remember { mutableStateOf<Uri?>(null) }
+    var aEnviarCandidatura by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     var ofertas by remember { mutableStateOf<List<InternshipOfferResponse>>(emptyList()) }
     var erro by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val escolherCvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        cvUri = uri
 
-    fun candidatar(oferta: InternshipOfferResponse) {
+        uri?.let {
+            context.contentResolver.takePersistableUriPermission(
+                it,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
+    }
+
+    fun abrirPopupCandidatura(oferta: InternshipOfferResponse) {
+        ofertaCandidatura = oferta
+        cvUri = null
+    }
+
+    fun submeterCandidatura(oferta: InternshipOfferResponse) {
         val offerId = oferta._id
+        val uri = cvUri
+
+        if (userId.isBlank()) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Utilizador não encontrado. Faz login novamente.")
+            }
+            return
+        }
 
         if (offerId.isNullOrBlank()) {
             scope.launch {
@@ -54,25 +96,44 @@ fun OfertasScreen(
             return
         }
 
+        if (uri == null) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Seleciona um currículo primeiro")
+            }
+            return
+        }
+
         scope.launch {
             try {
-                val response = RetrofitClient.apiService.createApplication(
-                    CreateApplicationRequest(
-                        internshipOfferId = offerId
-                    )
+                aEnviarCandidatura = true
+
+                val availableFrom = SimpleDateFormat(
+                    "yyyy-MM-dd",
+                    Locale.getDefault()
+                ).format(Date())
+
+                val response = RetrofitClient.apiService.candidatarOferta(
+                    userId = userId.toTextRequestBody(),
+                    internshipOfferId = offerId.toTextRequestBody(),
+                    availableFrom = availableFrom.toTextRequestBody(),
+                    cv = context.uriToMultipart(uri)
                 )
 
-                snackbarHostState.showSnackbar(response.message)
-                onCandidatar(oferta)
-
-            } catch (e: HttpException) {
-                if (e.code() == 409) {
-                    snackbarHostState.showSnackbar("Já existe uma candidatura para esta oferta")
+                if (response.isSuccessful) {
+                    snackbarHostState.showSnackbar("Candidatura submetida com sucesso")
+                    ofertaCandidatura = null
+                    cvUri = null
+                    onCandidatar(oferta)
                 } else {
-                    snackbarHostState.showSnackbar("Erro ao criar candidatura")
+                    val erroBackend = response.errorBody()?.string()
+                    snackbarHostState.showSnackbar(
+                        "Erro ${response.code()}: ${erroBackend ?: "Erro ao submeter candidatura"}"
+                    )
                 }
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Erro: ${e.message}")
+            } finally {
+                aEnviarCandidatura = false
             }
         }
     }
@@ -103,10 +164,11 @@ fun OfertasScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            TopBarComPerfil(
-                nome = "PEDRO SOUSA",
-                mostrarVoltar = true,
-                onVoltar = onVoltar
+            ProfileTopBar(
+                nome = nomeUtilizador.uppercase(),
+                mostrarNotificacoes = false,
+                onVoltar = onVoltar,
+                onLogout = onLogout
             )
 
             OutlinedTextField(
@@ -165,7 +227,7 @@ fun OfertasScreen(
                             OfertaCard(
                                 oferta = oferta,
                                 onVerDetalhes = { ofertaSelecionada = oferta },
-                                onCandidatar = { candidatar(oferta) }
+                                onCandidatar = { abrirPopupCandidatura(oferta) }
                             )
                         }
                     }
@@ -178,8 +240,75 @@ fun OfertasScreen(
                 oferta = oferta,
                 onDismiss = { ofertaSelecionada = null },
                 onCandidatar = {
-                    candidatar(oferta)
                     ofertaSelecionada = null
+                    abrirPopupCandidatura(oferta)
+                }
+            )
+        }
+        ofertaCandidatura?.let { oferta ->
+            AlertDialog(
+                onDismissRequest = {
+                    if (!aEnviarCandidatura) {
+                        ofertaCandidatura = null
+                        cvUri = null
+                    }
+                },
+                title = {
+                    Text("Candidatar à oferta")
+                },
+                text = {
+                    Column {
+                        Text("Seleciona o teu currículo para submeter a candidatura.")
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                escolherCvLauncher.launch(
+                                    arrayOf(
+                                        "application/pdf",
+                                        "application/msword",
+                                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                    )
+                                )
+                            }
+                        ) {
+                            Text(
+                                if (cvUri == null) {
+                                    "Selecionar currículo"
+                                } else {
+                                    "Currículo selecionado"
+                                }
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        enabled = cvUri != null && !aEnviarCandidatura,
+                        onClick = {
+                            submeterCandidatura(oferta)
+                        }
+                    ) {
+                        Text(
+                            if (aEnviarCandidatura) {
+                                "A enviar..."
+                            } else {
+                                "Submeter"
+                            }
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !aEnviarCandidatura,
+                        onClick = {
+                            ofertaCandidatura = null
+                            cvUri = null
+                        }
+                    ) {
+                        Text("Cancelar")
+                    }
                 }
             )
         }

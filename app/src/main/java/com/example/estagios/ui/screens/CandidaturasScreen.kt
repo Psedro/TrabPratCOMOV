@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.data.remote.StudentApplicationResponse
+import com.example.estagios.ui.common.ProfileTopBar
 import com.example.estagios.ui.theme.Azul
 import com.example.estagios.ui.theme.TextoEmpresa
 import com.example.estagios.ui.theme.TextoSecundario
@@ -64,7 +65,11 @@ fun CandidaturasScreen(onVoltar: () -> Unit) {
             .fillMaxSize()
             .background(Color.White)
     ) {
-        TopBarComPerfil(nome = "PEDRO SOUSA", mostrarVoltar = true, onVoltar = onVoltar)
+        ProfileTopBar(
+            nome = "PEDRO SOUSA",
+            mostrarNotificacoes = false,
+            onVoltar = onVoltar
+        )
 
         OutlinedTextField(
             value = pesquisa,

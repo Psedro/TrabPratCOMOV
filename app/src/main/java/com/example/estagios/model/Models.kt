@@ -164,3 +164,25 @@ data class InternshipOfferResponse(
     val totalSpots: Int? = null,
     val durationInMonths: Int? = null
 )
+
+data class CreateInternshipOfferRequest(
+    val name: String,
+    val description: String,
+    val requirements: String,
+    val duration_in_months: Int,
+    val total_spots: Int,
+    val application_deadline: String,
+    val is_active: Boolean = true,
+    val companyName: String,
+    val location: String
+)
+data class CandidatarOfertaResponse(
+    val message: String,
+    val application: ApplicationData? = null
+)
+
+data class ApplicationData(
+    val id: String? = null,
+    val status: String? = null,
+    val cvDocumentId: String? = null
+)
