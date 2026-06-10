@@ -27,6 +27,9 @@ import com.example.estagios.ui.theme.Azul
 import com.example.estagios.ui.theme.TextoEmpresa
 import com.example.estagios.ui.theme.TextoSecundario
 import kotlinx.coroutines.launch
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun CandidaturasScreen(
@@ -439,6 +442,18 @@ fun DetalheCandidaturaDialog(
     onAceitar: () -> Unit,
     onRecusar: () -> Unit
 ) {
+    val context = LocalContext.current
+
+    fun abrirCurriculo() {
+        val caminhoCv = candidatura.cvPath
+
+        if (!caminhoCv.isNullOrBlank()) {
+            val url = "http://10.0.2.2:3000$caminhoCv"
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            context.startActivity(intent)
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -476,6 +491,21 @@ fun DetalheCandidaturaDialog(
                 "Currículo",
                 candidatura.cvName
             )
+
+            if (!candidatura.cvPath.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = { abrirCurriculo() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B5CE6))
+                ) {
+                    Text("Abrir currículo", fontSize = 13.sp)
+                }
+            }
 
             if (tipoUtilizador == TipoUtilizador.EMPRESA) {
                 DetalheLinha(
