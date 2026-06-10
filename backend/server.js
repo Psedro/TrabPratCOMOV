@@ -1386,6 +1386,136 @@ app.get("/company-offers", async (req, res) => {
   }
 });
 
+app.patch("/applications/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, status } = req.body;
+
+    const estadosValidos = ["pending", "accepted", "rejected", "ongoing", "in_progress"];
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "applicationId inválido"
+      });
+    }
+
+    if (!userId || !ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    if (!status || !estadosValidos.includes(status)) {
+      return res.status(400).json({
+        message: "Estado inválido"
+      });
+    }
+
+    const companyUserId = new ObjectId(userId);
+    const applicationId = new ObjectId(id);
+
+    const user = await db.collection("users").findOne({
+      _id: companyUserId
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
+      });
+    }
+
+    const role = await db.collection("roles").findOne({
+      _id: user.roleId
+    });
+
+    if (role?.name !== "company") {
+      return res.status(403).json({
+        message: "Apenas empresas podem alterar o estado das candidaturas"
+      });
+    }
+
+    const company = await db.collection("companies").findOne({
+      ownerUserId: companyUserId
+    });
+
+    if (!company) {
+      return res.status(404).json({
+        message: "Empresa não encontrada"
+      });
+    }
+
+    const application = await db.collection("applications").findOne({
+      _id: applicationId
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        message: "Candidatura não encontrada"
+      });
+    }
+
+    const offer = await db.collection("internshipOffers").findOne({
+      _id: application.internshipOfferId
+    });
+
+    if (!offer) {
+      return res.status(404).json({
+        message: "Oferta não encontrada"
+      });
+    }
+
+    const companyLocations = await db.collection("companyLocations").find({
+      $or: [
+        { companyId: company._id },
+        { companyId: company._id.toString() },
+        { company_id: company._id },
+        { company_id: company._id.toString() }
+      ]
+    }).toArray();
+
+    const companyLocationIds = companyLocations.flatMap(location => [
+      location._id?.toString(),
+      location._id
+    ]);
+
+    const ofertaPertenceEmpresa =
+      offer.companyName === company.name ||
+      companyLocationIds.some(idLocal =>
+        idLocal?.toString() === offer.companyLocationId?.toString() ||
+        idLocal?.toString() === offer.company_location_id?.toString()
+      );
+
+    if (!ofertaPertenceEmpresa) {
+      return res.status(403).json({
+        message: "Esta candidatura não pertence a uma oferta desta empresa"
+      });
+    }
+
+    await db.collection("applications").updateOne(
+      { _id: applicationId },
+      {
+        $set: {
+          status: status,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    res.json({
+      message: "Estado da candidatura atualizado com sucesso",
+      applicationId: id,
+      status: status
+    });
+  } catch (error) {
+    console.error("ERRO AO ATUALIZAR CANDIDATURA:", error);
+
+    res.status(500).json({
+      message: "Erro ao atualizar estado da candidatura",
+      error: error.message
+    });
+  }
+});
+
 connectToMongo().then(() => {
   app.listen(PORT, () => {
     console.log(`Servidor a correr em http://localhost:${PORT}`);
