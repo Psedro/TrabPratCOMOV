@@ -1,17 +1,16 @@
-package com.example.estagios.data.remote
+﻿package com.example.estagios.data.remote
 
 import com.example.estagios.model.LoginRequest
 import com.example.estagios.model.LoginResponse
 import com.example.estagios.model.RegisterRequest
 import com.example.estagios.model.RegisterResponse
 import retrofit2.Response
-import retrofit2.http.GET
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.POST
-import com.example.estagios.model.InternshipOfferResponse
+import retrofit2.http.Query
 
 interface ApiService {
-
     @GET("health")
     suspend fun checkHealth(): HealthResponse
 
@@ -27,7 +26,14 @@ interface ApiService {
     ): ApplicationResponse
 
     @GET("student-applications")
-    suspend fun getStudentApplications(): List<StudentApplicationResponse>
+    suspend fun getStudentApplications(
+        @Query("userId") userId: String
+    ): List<StudentApplicationResponse>
+
+    @GET("student-dashboard")
+    suspend fun getStudentDashboard(
+        @Query("userId") userId: String
+    ): DashboardStatsResponse
 
     @POST("api/auth/login")
     suspend fun login(

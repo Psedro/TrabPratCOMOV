@@ -1,4 +1,4 @@
-const bcrypt = require("bcryptjs");
+﻿const bcrypt = require("bcryptjs");
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ObjectId } = require("mongodb");
@@ -33,6 +33,45 @@ async function connectToMongo() {
     console.error("Erro ao ligar ao MongoDB:", error.message);
     process.exit(1);
   }
+}
+
+function separarNomeCompleto(nome) {
+  const partes = (nome || "").trim().split(/\s+/);
+  const firstName = partes.shift() || "";
+  const lastName = partes.join(" ");
+  return { firstName, lastName };
+}
+
+function obterLabelRole(tipo) {
+  switch (tipo) {
+    case "student":
+      return "Estudante";
+    case "teacher":
+      return "Professor";
+    case "company":
+      return "Empresa";
+    default:
+      return "Utilizador";
+  }
+}
+
+async function obterEnderecoPadrao() {
+  let address = await db.collection("addresses").findOne({
+    street: "Rua do Estudante Teste"
+  });
+
+  if (!address) {
+    const addressResult = await db.collection("addresses").insertOne({
+      street: "Rua do Estudante Teste",
+      buildingNumber: "1",
+      city: "Viana do Castelo",
+      postalCode: "4900-000"
+    });
+
+    address = { _id: addressResult.insertedId };
+  }
+
+  return address;
 }
 
 app.get("/", (req, res) => {
@@ -95,33 +134,6 @@ app.get("/users", async (req, res) => {
   }
 });
 
-app.post("/users", async (req, res) => {
-  try {
-    const user = {
-      firstName: req.body.firstName,
-      lastName: req.body.lastName,
-      email: req.body.email,
-      passwordHash: req.body.passwordHash,
-      status: req.body.status || "active",
-      roleId: new ObjectId(req.body.roleId),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    const result = await db.collection("users").insertOne(user);
-
-    res.status(201).json({
-      message: "Utilizador criado com sucesso",
-      insertedId: result.insertedId
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Erro ao criar utilizador",
-      error: error.message
-    });
-  }
-});
-
 app.get("/internship-offers", async (req, res) => {
   try {
     const offers = await db.collection("internshipOffers").find().toArray();
@@ -148,70 +160,47 @@ app.get("/applications", async (req, res) => {
 
 app.post("/applications", async (req, res) => {
   try {
-    const internshipOfferId = req.body.internshipOfferId;
+    const { internshipOfferId, userId, coverLetter, availableFrom } = req.body;
 
-    if (!internshipOfferId) {
+    if (!internshipOfferId || !userId) {
       return res.status(400).json({
-        message: "internshipOfferId é obrigatório"
+        message: "internshipOfferId e userId são obrigatórios"
       });
     }
 
-    const role = await db.collection("roles").findOne({ name: "student" });
-
-    let address = await db.collection("addresses").findOne({
-      street: "Rua do Estudante Teste"
-    });
-
-    if (!address) {
-      const addressResult = await db.collection("addresses").insertOne({
-        street: "Rua do Estudante Teste",
-        buildingNumber: "1",
-        city: "Viana do Castelo",
-        postalCode: "4900-000"
-      });
-
-      address = { _id: addressResult.insertedId };
-    }
-
-    let user = await db.collection("users").findOne({
-      email: "pedro.sousa@alunos.ipvc.pt"
+    const user = await db.collection("users").findOne({
+      _id: new ObjectId(userId)
     });
 
     if (!user) {
-      const userResult = await db.collection("users").insertOne({
-        firstName: "Pedro",
-        lastName: "Sousa",
-        email: "pedro.sousa@alunos.ipvc.pt",
-        passwordHash: "123456",
-        status: "active",
-        roleId: role._id,
-        createdAt: new Date(),
-        updatedAt: new Date()
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
       });
-
-      user = { _id: userResult.insertedId };
     }
 
-    let student = await db.collection("students").findOne({
+    const student = await db.collection("students").findOne({
       userId: user._id
     });
 
     if (!student) {
-      const studentResult = await db.collection("students").insertOne({
-        userId: user._id,
-        indexNumber: 12345,
-        studyYear: 3,
-        degreeLevel: "Licenciatura",
-        addressId: address._id,
-        mainCvId: null
+      return res.status(404).json({
+        message: "Aluno não encontrado"
       });
+    }
 
-      student = { _id: studentResult.insertedId };
+    const offer = await db.collection("internshipOffers").findOne({
+      _id: new ObjectId(internshipOfferId)
+    });
+
+    if (!offer) {
+      return res.status(404).json({
+        message: "Oferta não encontrada"
+      });
     }
 
     const existingApplication = await db.collection("applications").findOne({
       studentId: student._id,
-      internshipOfferId: new ObjectId(internshipOfferId)
+      internshipOfferId: offer._id
     });
 
     if (existingApplication) {
@@ -223,12 +212,14 @@ app.post("/applications", async (req, res) => {
     const application = {
       appliedDate: new Date(),
       status: "pending",
-      coverLetter: req.body.coverLetter || "Candidatura submetida através da aplicação móvel.",
-      availableFrom: req.body.availableFrom ? new Date(req.body.availableFrom) : new Date(),
+      coverLetter: coverLetter || "Candidatura submetida através da aplicação móvel.",
+      availableFrom: availableFrom ? new Date(availableFrom) : new Date(),
       portfolioUrl: req.body.portfolioUrl || "",
       cvDocumentId: null,
       studentId: student._id,
-      internshipOfferId: new ObjectId(internshipOfferId)
+      internshipOfferId: offer._id,
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
 
     const result = await db.collection("applications").insertOne(application);
@@ -245,14 +236,88 @@ app.post("/applications", async (req, res) => {
   }
 });
 
-app.get("/student-applications", async (req, res) => {
+app.get("/student-dashboard", async (req, res) => {
   try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        message: "userId é obrigatório"
+      });
+    }
+
     const user = await db.collection("users").findOne({
-      email: "pedro.sousa@alunos.ipvc.pt"
+      _id: new ObjectId(userId)
     });
 
     if (!user) {
-      return res.json([]);
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
+      });
+    }
+
+    const student = await db.collection("students").findOne({
+      userId: user._id
+    });
+
+    if (!student) {
+      return res.json({
+        nomeUtilizador: `${user.firstName || ""} ${user.lastName || ""}`.trim().toUpperCase(),
+        candidaturasAtivas: 0,
+        candidaturasAceites: 0,
+        mensagensNovas: 0
+      });
+    }
+
+    const candidaturas = await db.collection("applications").find({
+      studentId: student._id
+    }).toArray();
+
+    const candidaturasAtivas = candidaturas.filter(app =>
+      ["pending", "accepted", "ongoing", "in_progress"].includes(app.status)
+    ).length;
+
+    const candidaturasAceites = candidaturas.filter(app =>
+      app.status === "accepted"
+    ).length;
+
+    const mensagensNovas = await db.collection("messages").countDocuments({
+      receiverId: user._id,
+      isRead: false
+    });
+
+    res.json({
+      nomeUtilizador: `${user.firstName || ""} ${user.lastName || ""}`.trim().toUpperCase(),
+      candidaturasAtivas,
+      candidaturasAceites,
+      mensagensNovas
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Erro ao buscar dados do dashboard",
+      error: error.message
+    });
+  }
+});
+
+app.get("/student-applications", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        message: "userId é obrigatório"
+      });
+    }
+
+    const user = await db.collection("users").findOne({
+      _id: new ObjectId(userId)
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
+      });
     }
 
     const student = await db.collection("students").findOne({
@@ -285,7 +350,7 @@ app.get("/student-applications", async (req, res) => {
           _id: { $toString: "$_id" },
           status: 1,
           appliedDate: 1,
-          cvName: "CV_Pedro_Sousa.pdf",
+          cvName: "CV_Aluno.pdf",
           offerTitle: "$offer.name",
           companyName: "$offer.companyName",
           offerDescription: "$offer.description",
@@ -308,47 +373,9 @@ app.get("/student-applications", async (req, res) => {
   }
 });
 
-function separarNomeCompleto(nome) {
-  const partes = (nome || "").trim().split(/\s+/);
-
-  const firstName = partes.shift() || "";
-  const lastName = partes.join(" ");
-
-  return {
-    firstName,
-    lastName
-  };
-}
-
-function obterLabelRole(tipo) {
-  switch (tipo) {
-    case "student":
-      return "Estudante";
-    case "teacher":
-      return "Professor";
-    case "company":
-      return "Empresa";
-    default:
-      return "Utilizador";
-  }
-}
-
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const {
-      nome,
-      email,
-      username,
-      password,
-      tipo,
-      estudante,
-      professor,
-      empresa
-    } = req.body;
-    console.log("BODY REGISTER:", req.body);
-    console.log("TIPO RECEBIDO:", tipo);
-    console.log("DADOS ESTUDANTE:", estudante);
-    console.log("Portoooo");
+    const { nome, email, username, password, tipo, estudante, professor, empresa } = req.body;
 
     if (!nome || !email || !username || !password || !tipo) {
       return res.status(400).json({
@@ -362,30 +389,6 @@ app.post("/api/auth/register", async (req, res) => {
       return res.status(400).json({
         message: "Tipo de utilizador inválido"
       });
-    }
-
-    if (tipo === "student") {
-      if (!estudante || !estudante.numeroAluno || !estudante.curso || !estudante.ano) {
-        return res.status(400).json({
-          message: "Dados do estudante incompletos"
-        });
-      }
-    }
-
-    if (tipo === "teacher") {
-      if (!professor || !professor.numeroProfessor || !professor.departamento) {
-        return res.status(400).json({
-          message: "Dados do professor incompletos"
-        });
-      }
-    }
-
-    if (tipo === "company") {
-      if (!empresa || !empresa.nomeEmpresa) {
-        return res.status(400).json({
-          message: "Dados da empresa incompletos"
-        });
-      }
     }
 
     const emailNormalizado = email.trim().toLowerCase();
@@ -451,26 +454,16 @@ app.post("/api/auth/register", async (req, res) => {
     const userId = userResult.insertedId;
 
     if (tipo === "student") {
-      console.log("VOU INSERIR STUDENT");
+      const address = await obterEnderecoPadrao();
 
-      try {
-        const studentData = {
-          userId: userId,
-          indexNumber: Number(estudante.numeroAluno),
-          studyYear: Number(estudante.ano),
-          degreeLevel: "Licenciatura",
-          addressId: new ObjectId("6a1ba421a0d6e4ac5d8c263b"),
-          mainCvId: null
-        };
-
-        console.log("DADOS A INSERIR EM STUDENTS:", studentData);
-
-        const resultStudent = await db.collection("students").insertOne(studentData);
-
-        console.log("STUDENT INSERIDO COM ID:", resultStudent.insertedId);
-      } catch (err) {
-        console.error("ERRO AO INSERIR STUDENT:", err);
-      }
+      await db.collection("students").insertOne({
+        userId: userId,
+        indexNumber: Number(estudante.numeroAluno),
+        studyYear: Number(estudante.ano),
+        degreeLevel: estudante.curso || "Licenciatura",
+        addressId: address._id,
+        mainCvId: null
+      });
     }
 
     if (tipo === "teacher") {
@@ -524,8 +517,10 @@ app.post("/api/auth/login", async (req, res) => {
       });
     }
 
+    const emailNormalizado = email.trim().toLowerCase();
+
     const user = await db.collection("users").findOne({
-      email: email
+      email: emailNormalizado
     });
 
     if (!user) {

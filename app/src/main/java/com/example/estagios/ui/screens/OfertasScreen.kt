@@ -1,4 +1,4 @@
-package com.example.estagios.ui.screens
+﻿package com.example.estagios.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,14 +20,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.estagios.model.InternshipOfferResponse
+import com.example.estagios.data.remote.AuthSession
+import com.example.estagios.data.remote.CreateApplicationRequest
+import com.example.estagios.data.remote.InternshipOfferResponse
 import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.ui.theme.Azul
 import com.example.estagios.ui.theme.TextoEmpresa
 import com.example.estagios.ui.theme.TextoSecundario
-
-//ligar o botao candidatar
-import com.example.estagios.data.remote.CreateApplicationRequest
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -39,57 +38,26 @@ fun OfertasScreen(
     var pesquisa by remember { mutableStateOf("") }
     var ofertaSelecionada by remember { mutableStateOf<InternshipOfferResponse?>(null) }
     var ofertas by remember { mutableStateOf<List<InternshipOfferResponse>>(emptyList()) }
-    var erro by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
+    var erro by remember { mutableStateOf<String?>(null) }
+
     val snackbarHostState = remember { SnackbarHostState() }
-
-    fun candidatar(oferta: InternshipOfferResponse) {
-        val offerId = oferta._id
-
-        if (offerId.isNullOrBlank()) {
-            scope.launch {
-                snackbarHostState.showSnackbar("Esta oferta não tem um ID válido")
-            }
-            return
-        }
-
-        scope.launch {
-            try {
-                val response = RetrofitClient.apiService.createApplication(
-                    CreateApplicationRequest(
-                        internshipOfferId = offerId
-                    )
-                )
-
-                snackbarHostState.showSnackbar(response.message)
-                onCandidatar(oferta)
-
-            } catch (e: HttpException) {
-                if (e.code() == 409) {
-                    snackbarHostState.showSnackbar("Já existe uma candidatura para esta oferta")
-                } else {
-                    snackbarHostState.showSnackbar("Erro ao criar candidatura")
-                }
-            } catch (e: Exception) {
-                snackbarHostState.showSnackbar("Erro: ${e.message}")
-            }
-        }
-    }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         try {
+            isLoading = true
+            erro = null
+
             val response = RetrofitClient.apiService.getInternshipOffers()
 
             if (response.isSuccessful) {
                 ofertas = response.body() ?: emptyList()
-                erro = null
             } else {
-                erro = "Erro ${response.code()}: ${response.message()}"
+                erro = "Erro ao carregar ofertas"
             }
-
         } catch (e: Exception) {
-            erro = e.message
+            erro = "Erro de ligação ao servidor"
         } finally {
             isLoading = false
         }
@@ -97,14 +65,51 @@ fun OfertasScreen(
 
     val ofertasFiltradas = ofertas.filter {
         pesquisa.isEmpty() ||
-                it.name.orEmpty().contains(pesquisa, ignoreCase = true) ||
-                it.companyName.orEmpty().contains(pesquisa, ignoreCase = true)
+                it.name.contains(pesquisa, ignoreCase = true) ||
+                (it.companyName ?: "").contains(pesquisa, ignoreCase = true)
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+    fun candidatar(oferta: InternshipOfferResponse) {
+        val userId = AuthSession.userId
+
+        if (userId == null) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Utilizador não autenticado")
+            }
+            return
+        }
+
+        scope.launch {
+            try {
+                RetrofitClient.apiService.createApplication(
+                    CreateApplicationRequest(
+                        internshipOfferId = oferta._id,
+                        userId = userId
+                    )
+                )
+
+                snackbarHostState.showSnackbar("Candidatura submetida com sucesso")
+                onCandidatar(oferta)
+            } catch (e: HttpException) {
+                if (e.code() == 409) {
+                    snackbarHostState.showSnackbar("Já te candidataste a esta oferta")
+                } else {
+                    snackbarHostState.showSnackbar("Erro ao submeter candidatura")
+                }
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Erro de ligação ao servidor")
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopBarComPerfil(
-                nome = "PEDRO SOUSA",
+                nome = AuthSession.nome?.uppercase() ?: "ALUNO",
                 mostrarVoltar = true,
                 onVoltar = onVoltar
             )
@@ -133,7 +138,7 @@ fun OfertasScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = Azul)
+                        CircularProgressIndicator()
                     }
                 }
 
@@ -142,7 +147,7 @@ fun OfertasScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("Erro ao carregar ofertas: $erro")
+                        Text(erro ?: "Erro", color = Color.Red)
                     }
                 }
 
@@ -151,7 +156,7 @@ fun OfertasScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("Sem ofertas disponíveis")
+                        Text("Não existem ofertas disponíveis", color = TextoSecundario)
                     }
                 }
 
@@ -173,6 +178,11 @@ fun OfertasScreen(
             }
         }
 
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+
         ofertaSelecionada?.let { oferta ->
             DetalheOfertaDialog(
                 oferta = oferta,
@@ -183,12 +193,6 @@ fun OfertasScreen(
                 }
             )
         }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(16.dp)
-        )
     }
 }
 
@@ -198,36 +202,31 @@ fun OfertaCard(
     onVerDetalhes: () -> Unit,
     onCandidatar: () -> Unit
 ) {
-    val nome = oferta.name ?: "Oferta sem título"
-    val empresa = oferta.companyName ?: "Empresa não definida"
-    val descricao = oferta.description.orEmpty()
-    val descricaoCurta = if (descricao.length > 120) {
-        descricao.take(120) + "..."
-    } else {
-        descricao.ifBlank { "Sem descrição disponível." }
-    }
-
-    val modeloTrabalho = oferta.workModel ?: "Modelo não definido"
-    val localizacao = oferta.location ?: "Localização não definida"
-    val vagas = oferta.totalSpots ?: 0
-    val duracao = oferta.durationInMonths ?: 0
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(16.dp))
             .padding(16.dp)
     ) {
-        Text(nome, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF2B5CE6))
+        Text(
+            text = oferta.name,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+            color = Color(0xFF2B5CE6)
+        )
 
         Spacer(modifier = Modifier.height(2.dp))
 
-        Text(empresa, fontSize = 14.sp, color = TextoEmpresa)
+        Text(
+            text = oferta.companyName ?: "Empresa não indicada",
+            fontSize = 14.sp,
+            color = TextoEmpresa
+        )
 
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = descricaoCurta,
+            text = if (oferta.description.length > 120) oferta.description.take(120) + "..." else oferta.description,
             fontSize = 13.sp,
             color = Color.Black,
             lineHeight = 18.sp
@@ -236,16 +235,16 @@ fun OfertaCard(
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            TagChip(modeloTrabalho)
-            TagChip("Vagas: $vagas")
+            TagChip(oferta.workModel ?: "Modelo não indicado")
+            TagChip(" meses")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            InfoItem(Icons.Outlined.LocationOn, localizacao)
-            InfoItem(Icons.Outlined.CalendarMonth, "$duracao meses")
-            InfoItem(Icons.Outlined.Group, "$vagas pessoas")
+            InfoItem(Icons.Outlined.LocationOn, oferta.location ?: "Local não indicado")
+            InfoItem(Icons.Outlined.CalendarMonth, " meses")
+            InfoItem(Icons.Outlined.Group, " vagas")
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -285,8 +284,16 @@ fun TagChip(texto: String) {
 
 @Composable
 fun InfoItem(icon: androidx.compose.ui.graphics.vector.ImageVector, texto: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(12.dp), tint = TextoSecundario)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(12.dp),
+            tint = TextoSecundario
+        )
         Text(texto, fontSize = 11.sp, color = TextoSecundario)
     }
 }
@@ -297,21 +304,6 @@ fun DetalheOfertaDialog(
     onDismiss: () -> Unit,
     onCandidatar: () -> Unit
 ) {
-    val nome = oferta.name ?: "Oferta sem título"
-    val empresa = oferta.companyName ?: "Empresa não definida"
-    val descricao = oferta.description.orEmpty()
-    val descricaoCurta = if (descricao.length > 120) {
-        descricao.take(120) + "..."
-    } else {
-        descricao.ifBlank { "Sem descrição disponível." }
-    }
-
-    val requisitos = oferta.requirements ?: "Requisitos não definidos."
-    val modeloTrabalho = oferta.workModel ?: "Modelo não definido"
-    val localizacao = oferta.location ?: "Localização não definida"
-    val vagas = oferta.totalSpots ?: 0
-    val duracao = oferta.durationInMonths ?: 0
-
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -319,57 +311,43 @@ fun DetalheOfertaDialog(
                 .background(Color.White, RoundedCornerShape(20.dp))
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(nome, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF2B5CE6))
+                Text(
+                    text = oferta.name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color(0xFF2B5CE6)
+                )
 
-                Text(empresa, fontSize = 14.sp, color = TextoEmpresa)
+                Text(
+                    text = oferta.companyName ?: "Empresa não indicada",
+                    fontSize = 14.sp,
+                    color = TextoEmpresa
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = oferta.description,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "Requisitos:",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Text(descricaoCurta, fontSize = 13.sp)
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TagChip(modeloTrabalho)
-                    TagChip("Vagas: $vagas")
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    InfoItem(Icons.Outlined.LocationOn, localizacao)
-                    InfoItem(Icons.Outlined.CalendarMonth, "$duracao meses")
-                    InfoItem(Icons.Outlined.Group, "$vagas pessoas")
-                }
+                Text(
+                    text = oferta.requirements,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
             }
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F0F0))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(nome, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF2B5CE6))
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(empresa, fontSize = 13.sp, color = TextoEmpresa)
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(descricao.ifBlank { "Sem descrição disponível." }, fontSize = 13.sp, lineHeight = 18.sp)
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text("Requisitos:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-
-                    Text(requisitos, fontSize = 13.sp, lineHeight = 18.sp)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             Row(
                 modifier = Modifier
