@@ -45,6 +45,7 @@ import retrofit2.HttpException
 fun OfertasScreen(
     nomeUtilizador: String,
     userId: String,
+    minhasOfertas: Boolean = false,
     onVoltar: () -> Unit,
     onLogout: () -> Unit,
     onCandidatar: (InternshipOfferResponse) -> Unit = {}
@@ -138,9 +139,20 @@ fun OfertasScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(userId, minhasOfertas) {
         try {
-            val response = RetrofitClient.apiService.getInternshipOffers()
+            isLoading = true
+
+            if (minhasOfertas && userId.isBlank()) {
+                erro = "UserId da empresa logada está vazio"
+                return@LaunchedEffect
+            }
+
+            val response = if (minhasOfertas) {
+                RetrofitClient.apiService.getCompanyOffers(userId)
+            } else {
+                RetrofitClient.apiService.getInternshipOffers()
+            }
 
             if (response.isSuccessful) {
                 ofertas = response.body() ?: emptyList()
@@ -226,6 +238,7 @@ fun OfertasScreen(
                         items(ofertasFiltradas) { oferta ->
                             OfertaCard(
                                 oferta = oferta,
+                                minhasOfertas = minhasOfertas,
                                 onVerDetalhes = { ofertaSelecionada = oferta },
                                 onCandidatar = { abrirPopupCandidatura(oferta) }
                             )
@@ -238,6 +251,7 @@ fun OfertasScreen(
         ofertaSelecionada?.let { oferta ->
             DetalheOfertaDialog(
                 oferta = oferta,
+                minhasOfertas = minhasOfertas,
                 onDismiss = { ofertaSelecionada = null },
                 onCandidatar = {
                     ofertaSelecionada = null
@@ -324,6 +338,7 @@ fun OfertasScreen(
 @Composable
 fun OfertaCard(
     oferta: InternshipOfferResponse,
+    minhasOfertas: Boolean,
     onVerDetalhes: () -> Unit,
     onCandidatar: () -> Unit
 ) {
@@ -389,13 +404,15 @@ fun OfertaCard(
                 Text("Ver detalhes", fontSize = 13.sp)
             }
 
-            Button(
-                onClick = onCandidatar,
-                modifier = Modifier.weight(1f).height(44.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Azul)
-            ) {
-                Text("Candidatar", fontSize = 13.sp)
+            if (!minhasOfertas) {
+                Button(
+                    onClick = onCandidatar,
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Azul)
+                ) {
+                    Text("Candidatar", fontSize = 13.sp)
+                }
             }
         }
     }
@@ -423,6 +440,7 @@ fun InfoItem(icon: androidx.compose.ui.graphics.vector.ImageVector, texto: Strin
 @Composable
 fun DetalheOfertaDialog(
     oferta: InternshipOfferResponse,
+    minhasOfertas: Boolean,
     onDismiss: () -> Unit,
     onCandidatar: () -> Unit
 ) {
@@ -515,13 +533,15 @@ fun DetalheOfertaDialog(
                     Text("Fechar", fontSize = 13.sp)
                 }
 
-                Button(
-                    onClick = onCandidatar,
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Azul)
-                ) {
-                    Text("Candidatar", fontSize = 13.sp)
+                if (!minhasOfertas) {
+                    Button(
+                        onClick = onCandidatar,
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Azul)
+                    ) {
+                        Text("Candidatar", fontSize = 13.sp)
+                    }
                 }
             }
         }

@@ -1,10 +1,11 @@
 package com.example.estagios.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -13,6 +14,11 @@ import androidx.compose.ui.unit.sp
 import com.example.estagios.ui.common.ProfileTopBar
 import com.example.estagios.ui.theme.CinzaBotao
 import com.example.estagios.ui.theme.TextoSecundario
+import com.example.estagios.data.remote.RetrofitClient
+import com.example.estagios.model.CompanyDashboardStatsResponse
+import com.example.estagios.model.SampleData.candidaturas
+import com.example.estagios.model.StudentDashboardStatsResponse
+import java.lang.System.console
 
 enum class TipoUtilizador {
     ALUNO,
@@ -22,20 +28,9 @@ enum class TipoUtilizador {
 
 @Composable
 fun HomeScreen(
-    tipoUtilizador: TipoUtilizador = TipoUtilizador.ALUNO,
-    nomeUtilizador: String = "UTILIZADOR",
-
-    candidaturasAtivas: Int = 3,
-    candidaturasAceites: Int = 2,
-    mensagensNovas: Int = 1,
-
-    ofertasTotais: Int = 3,
-    candidaturas: Int = 2,
-    estagiosADecorrer: Int = 1,
-
-    ofertasEmpresa: Int = 1,
-    candidaturasRecebidas: Int = 1,
-    candidaturasPendentes: Int = 1,
+    userId: String,
+    tipoUtilizador: TipoUtilizador,
+    nomeUtilizador: String,
 
     onVerOfertas: () -> Unit = {},
     onMinhasCandidaturas: () -> Unit = {},
@@ -49,23 +44,69 @@ fun HomeScreen(
     onVerCandidaturas: () -> Unit = {},
     onMinhasOfertas: () -> Unit = {}
 ) {
+    var studentStats by remember {
+        mutableStateOf(StudentDashboardStatsResponse())
+    }
+
+
+    var isLoadingStats by remember {
+        mutableStateOf(false)
+    }
+
+    var companyStats by remember {
+        mutableStateOf(CompanyDashboardStatsResponse())
+    }
+
+    LaunchedEffect(tipoUtilizador, userId) {
+        if (userId.isBlank()) {
+            Log.d("HOME_STATS", "USER ID vazio. Não fui buscar estatísticas.")
+            return@LaunchedEffect
+        }
+
+        try {
+            isLoadingStats = true
+
+            when (tipoUtilizador) {
+                TipoUtilizador.ALUNO -> {
+                    Log.d("HOME_STATS", "A buscar stats de ALUNO para userId=$userId")
+                    studentStats = RetrofitClient.apiService.getStudentDashboardStats(userId)
+                    Log.d("HOME_STATS", "STATS ALUNO: $studentStats")
+                }
+
+                TipoUtilizador.EMPRESA -> {
+                    Log.d("HOME_STATS", "A buscar stats de EMPRESA para userId=$userId")
+                    companyStats = RetrofitClient.apiService.getCompanyDashboardStats(userId)
+                    Log.d("HOME_STATS", "STATS EMPRESA: $companyStats")
+                }
+
+                TipoUtilizador.DOCENTE -> {
+                    Log.d("HOME_STATS", "Stats de docente ainda não implementadas.")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("HOME_STATS", "Erro ao buscar estatísticas", e)
+        } finally {
+            isLoadingStats = false
+        }
+    }
+
     val estatisticas = when (tipoUtilizador) {
         TipoUtilizador.ALUNO -> listOf(
-            "Candidaturas ativas" to candidaturasAtivas.toString(),
-            "Candidaturas aceites" to candidaturasAceites.toString(),
-            "Mensagens novas" to mensagensNovas.toString()
+            "Candidaturas ativas" to if (isLoadingStats) "..." else studentStats.activeApplications.toString(),
+            "Candidaturas aceites" to if (isLoadingStats) "..." else studentStats.acceptedApplications.toString(),
+            "Mensagens novas" to if (isLoadingStats) "..." else studentStats.newMessages.toString()
         )
 
         TipoUtilizador.DOCENTE -> listOf(
-            "Ofertas totais" to ofertasTotais.toString(),
-            "Candidaturas" to candidaturas.toString(),
-            "Estágios a decorrer" to estagiosADecorrer.toString()
+            "Ofertas totais" to "0",
+            "Candidaturas" to "0",
+            "Estágios a decorrer" to "0"
         )
 
         TipoUtilizador.EMPRESA -> listOf(
-            "Ofertas" to ofertasEmpresa.toString(),
-            "Candidaturas recebidas" to candidaturasRecebidas.toString(),
-            "Candidaturas pendentes" to candidaturasPendentes.toString()
+            "Ofertas" to if (isLoadingStats) "..." else companyStats.offers.toString(),
+            "Candidaturas recebidas" to if (isLoadingStats) "..." else companyStats.receivedApplications.toString(),
+            "Candidaturas pendentes" to if (isLoadingStats) "..." else companyStats.pendingApplications.toString()
         )
     }
 

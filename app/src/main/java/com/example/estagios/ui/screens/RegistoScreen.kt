@@ -17,7 +17,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.estagios.model.RegisterRequest
 import com.example.estagios.model.TipoUtilizadorRegisto
-import com.example.estagios.model.StudentRegisterData
+import com.example.estagios.model.EstudanteRegisterData
 import com.example.estagios.model.ProfessorRegisterData
 import com.example.estagios.model.EmpresaRegisterData
 
@@ -49,6 +49,11 @@ fun RegistoScreen(
     var nomeEmpresa by remember { mutableStateOf("") }
     var websiteEmpresa by remember { mutableStateOf("") }
     var descricaoEmpresa by remember { mutableStateOf("") }
+    var rua by remember { mutableStateOf("") }
+    var numero by remember { mutableStateOf("") }
+    var cidade by remember { mutableStateOf("") }
+    var codigoPostal by remember { mutableStateOf("") }
+    var isHeadquarters by remember { mutableStateOf(true) }
 
     var erro by remember { mutableStateOf<String?>(null) }
 
@@ -167,7 +172,18 @@ fun RegistoScreen(
                     websiteEmpresa = websiteEmpresa,
                     onWebsiteEmpresaChange = { websiteEmpresa = it },
                     descricaoEmpresa = descricaoEmpresa,
-                    onDescricaoEmpresaChange = { descricaoEmpresa = it }
+                    onDescricaoEmpresaChange = { descricaoEmpresa = it },
+
+                    rua = rua,
+                    onRuaChange = { rua = it },
+                    numero = numero,
+                    onNumeroChange = { numero = it },
+                    cidade = cidade,
+                    onCidadeChange = { cidade = it },
+                    codigoPostal = codigoPostal,
+                    onCodigoPostalChange = { codigoPostal = it },
+                    isHeadquarters = isHeadquarters,
+                    onIsHeadquartersChange = { isHeadquarters = it }
                 )
             }
         }
@@ -194,7 +210,11 @@ fun RegistoScreen(
                     ano = ano,
                     numeroProfessor = numeroProfessor,
                     departamento = departamento,
-                    nomeEmpresa = nomeEmpresa
+                    nomeEmpresa = nomeEmpresa,
+                    rua = rua,
+                    numero = numero,
+                    cidade = cidade,
+                    codigoPostal = codigoPostal
                 )
 
                 if (erro == null) {
@@ -206,7 +226,7 @@ fun RegistoScreen(
                         tipo = tipoUtilizador.valorApi,
 
                         estudante = if (tipoUtilizador == TipoUtilizadorRegisto.ESTUDANTE) {
-                            StudentRegisterData(
+                            EstudanteRegisterData(
                                 numeroAluno = numeroAluno,
                                 curso = curso,
                                 ano = ano
@@ -222,9 +242,14 @@ fun RegistoScreen(
 
                         empresa = if (tipoUtilizador == TipoUtilizadorRegisto.EMPRESA) {
                             EmpresaRegisterData(
-                                nomeEmpresa = nomeEmpresa,
-                                website = websiteEmpresa,
-                                descricao = descricaoEmpresa
+                                nomeEmpresa = nomeEmpresa.trim(),
+                                website = websiteEmpresa.trim(),
+                                descricao = descricaoEmpresa.trim(),
+                                rua = rua.trim(),
+                                numero = numero.trim(),
+                                cidade = cidade.trim(),
+                                codigoPostal = codigoPostal.trim(),
+                                isHeadquarters = isHeadquarters
                             )
                         } else null
                     )
@@ -353,7 +378,18 @@ fun CamposEmpresa(
     websiteEmpresa: String,
     onWebsiteEmpresaChange: (String) -> Unit,
     descricaoEmpresa: String,
-    onDescricaoEmpresaChange: (String) -> Unit
+    onDescricaoEmpresaChange: (String) -> Unit,
+
+    rua: String,
+    onRuaChange: (String) -> Unit,
+    numero: String,
+    onNumeroChange: (String) -> Unit,
+    cidade: String,
+    onCidadeChange: (String) -> Unit,
+    codigoPostal: String,
+    onCodigoPostalChange: (String) -> Unit,
+    isHeadquarters: Boolean,
+    onIsHeadquartersChange: (Boolean) -> Unit
 ) {
     Text(
         text = "Dados da empresa",
@@ -386,6 +422,62 @@ fun CamposEmpresa(
         modifier = Modifier.fillMaxWidth(),
         minLines = 3
     )
+
+    HorizontalDivider()
+
+    Text(
+        text = "Morada da empresa",
+        style = MaterialTheme.typography.titleMedium
+    )
+
+    OutlinedTextField(
+        value = rua,
+        onValueChange = onRuaChange,
+        label = { Text("Rua") },
+        leadingIcon = { Icon(Icons.Outlined.Business, contentDescription = null) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true
+    )
+
+    OutlinedTextField(
+        value = numero,
+        onValueChange = onNumeroChange,
+        label = { Text("Número") },
+        leadingIcon = { Icon(Icons.Outlined.Business, contentDescription = null) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true
+    )
+
+    OutlinedTextField(
+        value = cidade,
+        onValueChange = onCidadeChange,
+        label = { Text("Cidade") },
+        leadingIcon = { Icon(Icons.Outlined.Business, contentDescription = null) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true
+    )
+
+    OutlinedTextField(
+        value = codigoPostal,
+        onValueChange = onCodigoPostalChange,
+        label = { Text("Código postal") },
+        leadingIcon = { Icon(Icons.Outlined.Business, contentDescription = null) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("É sede / headquarters?")
+
+        Switch(
+            checked = isHeadquarters,
+            onCheckedChange = onIsHeadquartersChange
+        )
+    }
 }
 
 fun validarRegisto(
@@ -401,7 +493,11 @@ fun validarRegisto(
     ano: String,
     numeroProfessor: String,
     departamento: String,
-    nomeEmpresa: String
+    nomeEmpresa: String,
+    rua: String,
+    numero: String,
+    cidade: String,
+    codigoPostal: String
 ): String? {
     if (firstName.isBlank()) return "O primeiro nome é obrigatório."
     if (lastName.isBlank()) return "O apelido é obrigatório."
@@ -433,6 +529,10 @@ fun validarRegisto(
         TipoUtilizadorRegisto.EMPRESA -> {
             when {
                 nomeEmpresa.isBlank() -> "O nome da empresa é obrigatório."
+                rua.isBlank() -> "A rua é obrigatória."
+                numero.isBlank() -> "O número é obrigatório."
+                cidade.isBlank() -> "A cidade é obrigatória."
+                codigoPostal.isBlank() -> "O código postal é obrigatório."
                 else -> null
             }
         }

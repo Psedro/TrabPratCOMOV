@@ -26,19 +26,45 @@ import com.example.estagios.ui.theme.TextoEmpresa
 import com.example.estagios.ui.theme.TextoSecundario
 
 @Composable
-fun CandidaturasScreen(onVoltar: () -> Unit) {
+fun CandidaturasScreen(
+    userId: String,
+    nomeUtilizador: String,
+    tipoUtilizador: TipoUtilizador,
+    onVoltar: () -> Unit,
+    onLogout: () -> Unit
+) {
     var pesquisa by remember { mutableStateOf("") }
     var filtroAtivo by remember { mutableStateOf<String?>(null) }
     var candidaturas by remember { mutableStateOf<List<StudentApplicationResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var erro by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(userId, tipoUtilizador) {
         try {
-            candidaturas = RetrofitClient.apiService.getStudentApplications()
+            isLoading = true
+
+            if (userId.isBlank()) {
+                erro = "UserId do utilizador logado está vazio"
+                return@LaunchedEffect
+            }
+
+            candidaturas = when (tipoUtilizador) {
+                TipoUtilizador.ALUNO -> {
+                    RetrofitClient.apiService.getStudentApplications(userId)
+                }
+
+                TipoUtilizador.EMPRESA -> {
+                    RetrofitClient.apiService.getCompanyApplications(userId)
+                }
+
+                TipoUtilizador.DOCENTE -> {
+                    emptyList()
+                }
+            }
+
             erro = null
         } catch (e: Exception) {
-            erro = e.message
+            erro = e.message ?: "Erro desconhecido"
         } finally {
             isLoading = false
         }
@@ -55,9 +81,11 @@ fun CandidaturasScreen(onVoltar: () -> Unit) {
         "progress" -> emProgresso
         else -> todas
     }.filter {
-        pesquisa.isEmpty() ||
+        pesquisa.isBlank() ||
                 it.offerTitle.contains(pesquisa, ignoreCase = true) ||
-                (it.companyName ?: "").contains(pesquisa, ignoreCase = true)
+                (it.companyName ?: "").contains(pesquisa, ignoreCase = true) ||
+                (it.studentName ?: "").contains(pesquisa, ignoreCase = true) ||
+                (it.studentEmail ?: "").contains(pesquisa, ignoreCase = true)
     }
 
     Column(
@@ -66,9 +94,10 @@ fun CandidaturasScreen(onVoltar: () -> Unit) {
             .background(Color.White)
     ) {
         ProfileTopBar(
-            nome = "PEDRO SOUSA",
+            nome = nomeUtilizador.uppercase(),
             mostrarNotificacoes = false,
-            onVoltar = onVoltar
+            onVoltar = onVoltar,
+            onLogout = onLogout
         )
 
         OutlinedTextField(
@@ -154,7 +183,10 @@ fun CandidaturasScreen(onVoltar: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(candidaturasFiltradas) { candidatura ->
-                        CandidaturaCard(candidatura = candidatura)
+                        CandidaturaCard(
+                            candidatura = candidatura,
+                            tipoUtilizador = tipoUtilizador
+                        )
                     }
                 }
             }
@@ -185,7 +217,10 @@ fun FiltroTab(texto: String, ativo: Boolean, onClick: () -> Unit, modifier: Modi
 }
 
 @Composable
-fun CandidaturaCard(candidatura: StudentApplicationResponse) {
+fun CandidaturaCard(
+    candidatura: StudentApplicationResponse,
+    tipoUtilizador: TipoUtilizador
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -205,7 +240,13 @@ fun CandidaturaCard(candidatura: StudentApplicationResponse) {
                     color = Color(0xFF2B5CE6)
                 )
                 Text(
-                    candidatura.companyName ?: "Empresa não definida",
+                    text = if (tipoUtilizador == TipoUtilizador.EMPRESA) {
+                        candidatura.studentName?.takeIf { it.isNotBlank() }
+                            ?: candidatura.studentEmail
+                            ?: "Aluno não definido"
+                    } else {
+                        candidatura.companyName ?: "Empresa não definida"
+                    },
                     fontSize = 13.sp,
                     color = TextoEmpresa
                 )
