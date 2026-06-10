@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.estagios.data.remote.UpdateApplicationStatusRequest
+import kotlinx.coroutines.launch
 import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.data.remote.StudentApplicationResponse
 import com.example.estagios.ui.common.ProfileTopBar
@@ -38,8 +40,12 @@ fun CandidaturasScreen(
     var candidaturas by remember { mutableStateOf<List<StudentApplicationResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var erro by remember { mutableStateOf<String?>(null) }
+    var refreshKey by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(userId, tipoUtilizador) {
+
+    LaunchedEffect(userId, tipoUtilizador, refreshKey) {
         try {
             isLoading = true
 
@@ -88,11 +94,40 @@ fun CandidaturasScreen(
                 (it.studentEmail ?: "").contains(pesquisa, ignoreCase = true)
     }
 
-    Column(
+    fun atualizarEstadoCandidatura(candidatura: StudentApplicationResponse, novoEstado: String) {
+        scope.launch {
+            try {
+                RetrofitClient.apiService.updateApplicationStatus(
+                    applicationId = candidatura._id,
+                    request = UpdateApplicationStatusRequest(
+                        userId = userId,
+                        status = novoEstado
+                    )
+                )
+
+                snackbarHostState.showSnackbar(
+                    if (novoEstado == "accepted") {
+                        "Candidatura aceite com sucesso"
+                    } else {
+                        "Candidatura recusada com sucesso"
+                    }
+                )
+
+                refreshKey++
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Erro ao atualizar candidatura")
+            }
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
         ProfileTopBar(
             nome = nomeUtilizador.uppercase(),
             mostrarNotificacoes = false,
@@ -185,12 +220,23 @@ fun CandidaturasScreen(
                     items(candidaturasFiltradas) { candidatura ->
                         CandidaturaCard(
                             candidatura = candidatura,
-                            tipoUtilizador = tipoUtilizador
+                            tipoUtilizador = tipoUtilizador,
+                            onAceitar = {
+                                atualizarEstadoCandidatura(candidatura, "accepted")
+                            },
+                            onRecusar = {
+                                atualizarEstadoCandidatura(candidatura, "rejected")
+                            }
                         )
                     }
                 }
             }
         }
+    }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 
@@ -219,7 +265,9 @@ fun FiltroTab(texto: String, ativo: Boolean, onClick: () -> Unit, modifier: Modi
 @Composable
 fun CandidaturaCard(
     candidatura: StudentApplicationResponse,
-    tipoUtilizador: TipoUtilizador
+    tipoUtilizador: TipoUtilizador,
+    onAceitar: () -> Unit,
+    onRecusar: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -270,6 +318,37 @@ fun CandidaturaCard(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        if (tipoUtilizador == TipoUtilizador.EMPRESA && candidatura.status == "pending") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = onRecusar,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020))
+                ) {
+                    Text("Recusar", fontSize = 13.sp)
+                }
+
+                Button(
+                    onClick = onAceitar,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                ) {
+                    Text("Aceitar", fontSize = 13.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         Button(
             onClick = { },
             modifier = Modifier
@@ -287,6 +366,7 @@ fun CandidaturaCard(
 fun EstadoBadge(status: String) {
     val (texto, cor, corTexto, icone) = when (status) {
         "accepted" -> Quadruple("Aceite", Color(0xFFE8F5E9), Color(0xFF2E7D32), "✅")
+        "rejected" -> Quadruple("Recusada", Color(0xFFFFEBEE), Color(0xFFC62828), "❌")
         "ongoing", "in_progress" -> Quadruple("Em progresso", Color(0xFFE3F2FD), Color(0xFF1565C0), "🔄")
         else -> Quadruple("Pendente", Color(0xFFFFFDE7), Color(0xFFF57F17), "⏱")
     }

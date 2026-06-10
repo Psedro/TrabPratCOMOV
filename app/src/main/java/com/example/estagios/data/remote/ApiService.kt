@@ -10,6 +10,8 @@ import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Body
 import retrofit2.http.POST
+import retrofit2.http.PATCH
+import retrofit2.http.Path
 import com.example.estagios.model.CreateInternshipOfferRequest
 import com.example.estagios.model.InternshipOfferResponse
 import com.example.estagios.model.StudentDashboardStatsResponse
@@ -78,4 +80,10 @@ interface ApiService {
     suspend fun getCompanyOffers(
         @Query("userId") userId: String
     ): Response<List<InternshipOfferResponse>>
+
+    @PATCH("applications/{id}/status")
+    suspend fun updateApplicationStatus(
+        @Path("id") applicationId: String,
+        @Body request: UpdateApplicationStatusRequest
+    ): UpdateApplicationStatusResponse
 }
