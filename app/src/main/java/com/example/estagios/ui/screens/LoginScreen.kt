@@ -11,6 +11,11 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -168,11 +173,24 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(24.dp))*/
 
             // Link de registo
-            Row(horizontalArrangement = Arrangement.Center) {
-                Text("Não tens conta? ", color = TextoSecundario, fontSize = 14.sp)
-                TextButton(onClick = onRegistar, contentPadding = PaddingValues(0.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Não tens conta? ",
+                    color = TextoSecundario,
+                    fontSize = 14.sp
+                )
+
+                TextButton(
+                    onClick = onRegistar,
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
                     Text(
-                        "Regista-te",
+                        text = "Regista-te",
                         color = Color(0xFF5B4FFF),
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp
