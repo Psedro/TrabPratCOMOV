@@ -122,8 +122,9 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
 
         composable(Screen.Home.route) {
             HomeScreen(
-                tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
+                userId = userId,
                 nomeUtilizador = nomeUtilizador,
+                tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
 
                 onVerOfertas = {
                     navController.navigate(Screen.Ofertas.route)
@@ -146,7 +147,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                     navController.navigate(Screen.Candidaturas.route)
                 },
                 onMinhasOfertas = {
-                    navController.navigate(Screen.Ofertas.route)
+                    navController.navigate(Screen.MinhasOfertas.route)
                 },
 
                 onMensagens = {
@@ -155,6 +156,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                 onLogout = {
                     nomeUtilizador = ""
                     tipoUtilizador = null
+                    userId = ""
 
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0)
@@ -167,6 +169,26 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             OfertasScreen(
                 nomeUtilizador = nomeUtilizador.ifBlank { "ALUNO" },
                 userId = userId,
+                minhasOfertas = false,
+                onVoltar = {
+                    navController.popBackStack()
+                },
+                onLogout = {
+                    nomeUtilizador = ""
+                    userId = ""
+                    tipoUtilizador = null
+
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0)
+                    }
+                }
+            )
+        }
+        composable(Screen.MinhasOfertas.route) {
+            OfertasScreen(
+                nomeUtilizador = nomeUtilizador.ifBlank { "EMPRESA" },
+                userId = userId,
+                minhasOfertas = true,
                 onVoltar = {
                     navController.popBackStack()
                 },
@@ -183,6 +205,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         }
         composable(Screen.CriarOferta.route) {
             CriarOfertaScreen(
+                userId = userId,
                 nomeUtilizador = nomeUtilizador,
                 onVoltar = { navController.popBackStack() },
                 onLogout = {
@@ -198,7 +221,21 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
 
         composable(Screen.Candidaturas.route) {
             CandidaturasScreen(
-                onVoltar = { navController.popBackStack() }
+                userId = userId,
+                nomeUtilizador = nomeUtilizador,
+                tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
+                onVoltar = {
+                    navController.popBackStack()
+                },
+                onLogout = {
+                    nomeUtilizador = ""
+                    userId = ""
+                    tipoUtilizador = null
+
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
             )
         }
 

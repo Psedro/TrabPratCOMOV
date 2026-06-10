@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun CriarOfertaScreen(
+    userId: String,
     nomeUtilizador: String,
     onVoltar: () -> Unit,
     onLogout: () -> Unit
@@ -180,14 +181,13 @@ fun CriarOfertaScreen(
                                 isLoading = true
 
                                 val request = CreateInternshipOfferRequest(
+                                    userId = userId,
                                     name = name,
                                     description = description,
                                     requirements = requirements,
                                     duration_in_months = duration,
                                     total_spots = spots,
                                     application_deadline = applicationDeadline,
-                                    is_active = true,
-                                    companyName = companyName,
                                     location = location
                                 )
 

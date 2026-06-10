@@ -90,12 +90,12 @@ data class RegisterRequest(
     val password: String,
     val tipo: String,
 
-    val estudante: StudentRegisterData? = null,
+    val estudante: EstudanteRegisterData? = null,
     val professor: ProfessorRegisterData? = null,
     val empresa: EmpresaRegisterData? = null
 )
 
-data class StudentRegisterData(
+data class EstudanteRegisterData(
     val numeroAluno: String,
     val curso: String,
     val ano: String
@@ -108,8 +108,14 @@ data class ProfessorRegisterData(
 
 data class EmpresaRegisterData(
     val nomeEmpresa: String,
-    val website: String,
-    val descricao: String
+    val website: String? = "",
+    val descricao: String? = "",
+
+    val rua: String,
+    val numero: String,
+    val cidade: String,
+    val codigoPostal: String,
+    val isHeadquarters: Boolean
 )
 
 data class RegisterResponse(
@@ -166,14 +172,13 @@ data class InternshipOfferResponse(
 )
 
 data class CreateInternshipOfferRequest(
+    val userId: String,
     val name: String,
     val description: String,
     val requirements: String,
     val duration_in_months: Int,
     val total_spots: Int,
     val application_deadline: String,
-    val is_active: Boolean = true,
-    val companyName: String,
     val location: String
 )
 data class CandidatarOfertaResponse(
@@ -185,4 +190,16 @@ data class ApplicationData(
     val id: String? = null,
     val status: String? = null,
     val cvDocumentId: String? = null
+)
+
+data class StudentDashboardStatsResponse(
+    val activeApplications: Int = 0,
+    val acceptedApplications: Int = 0,
+    val newMessages: Int = 0
+)
+
+data class CompanyDashboardStatsResponse(
+    val offers: Int = 0,
+    val receivedApplications: Int = 0,
+    val pendingApplications: Int = 0
 )

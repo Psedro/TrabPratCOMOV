@@ -1,4 +1,4 @@
-const bcrypt = require("bcryptjs");
+﻿const bcrypt = require("bcryptjs");
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ObjectId } = require("mongodb");
@@ -182,9 +182,11 @@ app.get("/internship-offers", async (req, res) => {
 
 app.post("/internship-offers", async (req, res) => {
   try {
+    console.log("====== CRIAR OFERTA ======");
     console.log("BODY OFERTA:", req.body);
 
     const {
+      userId,
       name,
       description,
       requirements,
@@ -195,48 +197,161 @@ app.post("/internship-offers", async (req, res) => {
       location
     } = req.body;
 
-    if (
-      !name ||
-      !description ||
-      !requirements ||
-      !duration_in_months ||
-      !total_spots ||
-      !application_deadline ||
-      !companyName ||
-      !location
-    ) {
+    const camposObrigatorios = {
+      userId,
+      name,
+      description,
+      requirements,
+      duration_in_months,
+      total_spots,
+      application_deadline,
+      location
+    };
+
+    console.log("CAMPOS RECEBIDOS OFERTA:", camposObrigatorios);
+
+    const camposEmFalta = Object.entries(camposObrigatorios)
+      .filter(([_, valor]) => valor === undefined || valor === null || valor === "")
+      .map(([campo]) => campo);
+
+    console.log("CAMPOS EM FALTA:", camposEmFalta);
+
+    if (camposEmFalta.length > 0) {
       return res.status(400).json({
-        message: "Campos obrigatórios em falta"
+        message: "Campos obrigatórios em falta",
+        camposEmFalta
       });
     }
 
-    const industry = await db.collection("industries").findOne({});
-    const companyLocation = await db.collection("companyLocations").findOne({});
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const ownerUserId = new ObjectId(userId);
+
+    const user = await db.collection("users").findOne({
+      _id: ownerUserId
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
+      });
+    }
+
+    const role = await db.collection("roles").findOne({
+      _id: user.roleId
+    });
+
+    if (role?.name !== "company") {
+      return res.status(403).json({
+        message: "Apenas empresas podem criar ofertas"
+      });
+    }
+
+    const company = await db.collection("companies").findOne({
+      ownerUserId: ownerUserId
+    });
+
+    console.log("EMPRESA ENCONTRADA:", company);
+
+    if (!company) {
+      return res.status(404).json({
+        message: "Empresa não encontrada para este utilizador"
+      });
+    }
+
+    let industry = await db.collection("industries").findOne({
+      name: "Tecnologia"
+    });
 
     if (!industry) {
-      return res.status(400).json({
-        message: "Não existe nenhuma indústria na coleção industries"
+      const industryResult = await db.collection("industries").insertOne({
+        name: "Tecnologia",
+        description: "Área tecnológica",
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      industry = {
+        _id: industryResult.insertedId,
+        name: "Tecnologia"
+      };
+    }
+
+    let companyLocation = await db.collection("companyLocations").findOne({
+      $or: [
+        {
+          companyId: company._id,
+          isHeadquarters: true
+        },
+        {
+          companyId: company._id.toString(),
+          isHeadquarters: true
+        }
+      ]
+    });
+
+    if (!companyLocation) {
+      companyLocation = await db.collection("companyLocations").findOne({
+        $or: [
+          { companyId: company._id },
+          { companyId: company._id.toString() },
+          { company_id: company._id },
+          { company_id: company._id.toString() }
+        ]
       });
     }
+
+    console.log("LOCALIZAÇÃO DA EMPRESA ENCONTRADA:", companyLocation);
 
     if (!companyLocation) {
       return res.status(400).json({
-        message: "Não existe nenhuma localização na coleção companyLocations"
+        message: "Esta empresa não tem nenhuma localização associada"
+      });
+    }
+
+    const durationNumber = Number(duration_in_months);
+    const totalSpotsNumber = Number(total_spots);
+    const deadlineDate = new Date(application_deadline);
+
+    if (isNaN(durationNumber)) {
+      return res.status(400).json({
+        message: "duration_in_months inválido"
+      });
+    }
+
+    if (isNaN(totalSpotsNumber)) {
+      return res.status(400).json({
+        message: "total_spots inválido"
+      });
+    }
+
+    if (isNaN(deadlineDate.getTime())) {
+      return res.status(400).json({
+        message: "application_deadline inválido"
       });
     }
 
     const offer = {
-      name,
-      description,
-      requirements,
+      name: name.trim(),
+      description: description.trim(),
+      requirements: requirements.trim(),
 
-      durationInMonths: Number(duration_in_months),
-      totalSpots: Number(total_spots),
-      applicationDeadline: new Date(application_deadline),
+      durationInMonths: durationNumber,
+      totalSpots: totalSpotsNumber,
+      applicationDeadline: deadlineDate,
 
       isActive: true,
-      companyName,
-      location,
+
+      // Usa o nome real da empresa que está na BD
+      companyName: company.name,
+
+      // Isto é o texto/localização mostrado na oferta
+      location: location.trim(),
+
       workModel: "Presencial",
 
       industryId: industry._id,
@@ -250,7 +365,7 @@ app.post("/internship-offers", async (req, res) => {
 
     const result = await db.collection("internshipOffers").insertOne(offer);
 
-    console.log("OFERTA INSERIDA COM ID:", result.insertedId);
+    console.log("OFERTA INSERIDA COM ID:", result.insertedId.toString());
 
     res.status(201).json({
       message: "Oferta criada com sucesso",
@@ -258,6 +373,7 @@ app.post("/internship-offers", async (req, res) => {
     });
   } catch (error) {
     console.error("ERRO AO CRIAR OFERTA:", error);
+    console.error("STACK:", error.stack);
     console.error(
       "DETALHES VALIDAÇÃO:",
       JSON.stringify(error.errInfo?.details, null, 2)
@@ -265,7 +381,8 @@ app.post("/internship-offers", async (req, res) => {
 
     res.status(500).json({
       message: "Erro ao criar oferta de estágio",
-      error: error.message
+      error: error.message,
+      details: error.errInfo?.details || null
     });
   }
 });
@@ -417,6 +534,9 @@ app.post("/applications", upload.single("cv"), async (req, res) => {
 
 app.get("/student-applications", async (req, res) => {
   try {
+    console.log("QUERY /student-applications:", req.query);
+
+
     const { userId } = req.query;
 
     if (!userId) {
@@ -502,6 +622,193 @@ app.get("/student-applications", async (req, res) => {
     });
   }
 });
+
+app.get("/company-applications", async (req, res) => {
+  try {
+    console.log("QUERY /company-applications:", req.query);
+
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        message: "userId é obrigatório"
+      });
+    }
+
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const ownerUserId = new ObjectId(userId);
+
+    const company = await db.collection("companies").findOne({
+      ownerUserId: ownerUserId
+    });
+
+    if (!company) {
+      return res.json([]);
+    }
+
+    const companyLocations = await db.collection("companyLocations").find({
+      $or: [
+        { companyId: company._id },
+        { companyId: company._id.toString() },
+        { company_id: company._id },
+        { company_id: company._id.toString() }
+      ]
+    }).toArray();
+
+    const companyLocationIds = companyLocations.flatMap(location => [
+      location._id,
+      location._id.toString()
+    ]);
+
+    const offers = await db.collection("internshipOffers").find({
+      $or: [
+        {
+          companyLocationId: {
+            $in: companyLocationIds
+          }
+        },
+        {
+          company_location_id: {
+            $in: companyLocationIds
+          }
+        },
+        {
+          companyName: company.name
+        }
+      ]
+    }).toArray();
+
+    const offerIds = offers.flatMap(offer => [
+      offer._id,
+      offer._id.toString()
+    ]);
+
+    if (offerIds.length === 0) {
+      return res.json([]);
+    }
+
+    const applications = await db.collection("applications").aggregate([
+      {
+        $match: {
+          $or: [
+            {
+              internshipOfferId: {
+                $in: offerIds
+              }
+            },
+            {
+              internship_offer_id: {
+                $in: offerIds
+              }
+            }
+          ]
+        }
+      },
+      {
+        $lookup: {
+          from: "internshipOffers",
+          localField: "internshipOfferId",
+          foreignField: "_id",
+          as: "offer"
+        }
+      },
+      {
+        $unwind: "$offer"
+      },
+      {
+        $lookup: {
+          from: "documents",
+          localField: "cvDocumentId",
+          foreignField: "_id",
+          as: "cvDocument"
+        }
+      },
+      {
+        $unwind: {
+          path: "$cvDocument",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "students",
+          localField: "studentId",
+          foreignField: "_id",
+          as: "student"
+        }
+      },
+      {
+        $unwind: {
+          path: "$student",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "student.userId",
+          foreignField: "_id",
+          as: "studentUser"
+        }
+      },
+      {
+        $unwind: {
+          path: "$studentUser",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: { $toString: "$_id" },
+          status: 1,
+          appliedDate: 1,
+          cvName: {
+            $ifNull: ["$cvDocument.fileName", "Sem currículo"]
+          },
+          cvPath: {
+            $ifNull: ["$cvDocument.filePath", null]
+          },
+          offerTitle: "$offer.name",
+          companyName: "$offer.companyName",
+          offerDescription: "$offer.description",
+          location: "$offer.location",
+          studentName: {
+            $trim: {
+              input: {
+                $concat: [
+                  { $ifNull: ["$studentUser.firstName", ""] },
+                  " ",
+                  { $ifNull: ["$studentUser.lastName", ""] }
+                ]
+              }
+            }
+          },
+          studentEmail: "$studentUser.email"
+        }
+      },
+      {
+        $sort: {
+          appliedDate: -1
+        }
+      }
+    ]).toArray();
+
+    res.json(applications);
+  } catch (error) {
+    console.error("ERRO /company-applications:", error);
+
+    res.status(500).json({
+      message: "Erro ao buscar candidaturas da empresa",
+      error: error.message
+    });
+  }
+});
+
 function separarNomeCompleto(nome) {
   const partes = (nome || "").trim().split(/\s+/);
 
@@ -526,6 +833,64 @@ function obterLabelRole(tipo) {
       return "Utilizador";
   }
 }
+
+app.get("/student-dashboard-stats", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        message: "userId é obrigatório"
+      });
+    }
+
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const userObjectId = new ObjectId(userId);
+
+    const student = await db.collection("students").findOne({
+      userId: userObjectId
+    });
+
+    if (!student) {
+      return res.json({
+        activeApplications: 0,
+        acceptedApplications: 0,
+        newMessages: 0
+      });
+    }
+
+    const activeApplications = await db.collection("applications").countDocuments({
+      studentId: student._id,
+      status: {
+        $nin: ["rejected", "cancelled"]
+      }
+    });
+
+    const acceptedApplications = await db.collection("applications").countDocuments({
+      studentId: student._id,
+      status: "accepted"
+    });
+
+    // Por enquanto fica 0, se ainda não tiveres sistema de mensagens.
+    const newMessages = 0;
+
+    res.json({
+      activeApplications,
+      acceptedApplications,
+      newMessages
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Erro ao buscar estatísticas do aluno",
+      error: error.message
+    });
+  }
+});
 
 app.post("/api/auth/register", async (req, res) => {
   try {
@@ -576,9 +941,17 @@ app.post("/api/auth/register", async (req, res) => {
     }
 
     if (tipo === "company") {
-      if (!empresa || !empresa.nomeEmpresa) {
+      if (
+        !empresa ||
+        !empresa.nomeEmpresa ||
+        !empresa.rua ||
+        !empresa.numero ||
+        !empresa.cidade ||
+        !empresa.codigoPostal ||
+        typeof empresa.isHeadquarters !== "boolean"
+      ) {
         return res.status(400).json({
-          message: "Dados da empresa incompletos"
+          message: "Dados da empresa incompletos. Nome da empresa, rua, número, cidade, código postal e headquarters são obrigatórios."
         });
       }
     }
@@ -644,6 +1017,9 @@ app.post("/api/auth/register", async (req, res) => {
 
     const userResult = await db.collection("users").insertOne(user);
     const userId = userResult.insertedId;
+    let createdCompanyId = null;
+    let createdAddressId = null;
+    let createdCompanyLocationId = null;
 
     if (tipo === "student") {
       console.log("VOU INSERIR STUDENT");
@@ -677,13 +1053,46 @@ app.post("/api/auth/register", async (req, res) => {
     }
 
     if (tipo === "company") {
-      await db.collection("companies").insertOne({
+      const company = {
         ownerUserId: userId,
-        name: empresa.nomeEmpresa,
+        name: empresa.nomeEmpresa.trim(),
         website: empresa.website || "",
         description: empresa.descricao || "",
-        industryIds: []
-      });
+        industryIds: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      const companyResult = await db.collection("companies").insertOne(company);
+      createdCompanyId = companyResult.insertedId;
+
+      const address = {
+        street: empresa.rua.trim(),
+        buildingNumber: empresa.numero.trim(),
+        city: empresa.cidade.trim(),
+        postalCode: empresa.codigoPostal.trim(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      const addressResult = await db.collection("addresses").insertOne(address);
+      createdAddressId = addressResult.insertedId;
+
+      const companyLocation = {
+        name: empresa.nomeEmpresa.trim(),
+        isHeadquarters: empresa.isHeadquarters,
+        companyId: createdCompanyId,
+        addressId: createdAddressId,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      const companyLocationResult = await db.collection("companyLocations").insertOne(companyLocation);
+      createdCompanyLocationId = companyLocationResult.insertedId;
+
+      console.log("EMPRESA CRIADA:", createdCompanyId.toString());
+      console.log("ADDRESS CRIADO:", createdAddressId.toString());
+      console.log("COMPANY LOCATION CRIADA:", createdCompanyLocationId.toString());
     }
 
     res.status(201).json({
@@ -694,7 +1103,11 @@ app.post("/api/auth/register", async (req, res) => {
         email: emailNormalizado,
         username: usernameNormalizado,
         tipo: tipo,
-        roleId: role._id.toString()
+        roleId: role._id.toString(),
+
+        companyId: createdCompanyId ? createdCompanyId.toString() : null,
+        addressId: createdAddressId ? createdAddressId.toString() : null,
+        companyLocationId: createdCompanyLocationId ? createdCompanyLocationId.toString() : null
       }
     });
   } catch (error) {
@@ -751,6 +1164,223 @@ app.post("/api/auth/login", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Erro ao fazer login",
+      error: error.message
+    });
+  }
+});
+
+app.get("/company-dashboard-stats", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    console.log("====== /company-dashboard-stats ======");
+    console.log("USER ID EMPRESA:", userId);
+
+    if (!userId) {
+      return res.status(400).json({
+        message: "userId é obrigatório"
+      });
+    }
+
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const ownerUserId = new ObjectId(userId);
+
+    const company = await db.collection("companies").findOne({
+      ownerUserId: ownerUserId
+    });
+
+    console.log("EMPRESA ENCONTRADA:", company);
+
+    if (!company) {
+      return res.json({
+        offers: 0,
+        receivedApplications: 0,
+        pendingApplications: 0
+      });
+    }
+
+    const companyLocations = await db.collection("companyLocations").find({
+      $or: [
+        { companyId: company._id },
+        { companyId: company._id.toString() },
+        { company_id: company._id },
+        { company_id: company._id.toString() }
+      ]
+    }).toArray();
+
+    console.log("LOCALIZAÇÕES DA EMPRESA:", companyLocations);
+
+    const companyLocationIds = companyLocations.flatMap(location => [
+      location._id,
+      location._id.toString()
+    ]);
+
+    const offers = await db.collection("internshipOffers").find({
+      $or: [
+        {
+          companyLocationId: {
+            $in: companyLocationIds
+          }
+        },
+        {
+          company_location_id: {
+            $in: companyLocationIds
+          }
+        },
+
+        // fallback para ofertas antigas
+        {
+          companyName: company.name
+        }
+      ]
+    }).toArray();
+
+    console.log("OFERTAS DA EMPRESA:", offers);
+
+    const offerIds = offers.flatMap(offer => [
+      offer._id,
+      offer._id.toString()
+    ]);
+
+    if (offerIds.length === 0) {
+      return res.json({
+        offers: 0,
+        receivedApplications: 0,
+        pendingApplications: 0
+      });
+    }
+
+    const receivedApplications = await db.collection("applications").countDocuments({
+      $or: [
+        {
+          internshipOfferId: {
+            $in: offerIds
+          }
+        },
+        {
+          internship_offer_id: {
+            $in: offerIds
+          }
+        }
+      ]
+    });
+
+    const pendingApplications = await db.collection("applications").countDocuments({
+      $and: [
+        {
+          $or: [
+            {
+              internshipOfferId: {
+                $in: offerIds
+              }
+            },
+            {
+              internship_offer_id: {
+                $in: offerIds
+              }
+            }
+          ]
+        },
+        {
+          status: "pending"
+        }
+      ]
+    });
+
+    const stats = {
+      offers: offers.length,
+      receivedApplications,
+      pendingApplications
+    };
+
+    console.log("STATS EMPRESA:", stats);
+
+    res.json(stats);
+  } catch (error) {
+    console.error("ERRO /company-dashboard-stats:", error);
+
+    res.status(500).json({
+      message: "Erro ao buscar estatísticas da empresa",
+      error: error.message
+    });
+  }
+});
+
+app.get("/company-offers", async (req, res) => {
+  try {
+    console.log("QUERY /company-offers:", req.query);
+
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        message: "userId é obrigatório"
+      });
+    }
+
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const ownerUserId = new ObjectId(userId);
+
+    const company = await db.collection("companies").findOne({
+      ownerUserId: ownerUserId
+    });
+
+    console.log("EMPRESA DAS OFERTAS:", company);
+
+    if (!company) {
+      return res.json([]);
+    }
+
+    const companyLocations = await db.collection("companyLocations").find({
+      $or: [
+        { companyId: company._id },
+        { companyId: company._id.toString() },
+        { company_id: company._id },
+        { company_id: company._id.toString() }
+      ]
+    }).toArray();
+
+    const companyLocationIds = companyLocations.flatMap(location => [
+      location._id,
+      location._id.toString()
+    ]);
+
+    const offers = await db.collection("internshipOffers").find({
+      $or: [
+        {
+          companyLocationId: {
+            $in: companyLocationIds
+          }
+        },
+        {
+          company_location_id: {
+            $in: companyLocationIds
+          }
+        },
+        {
+          companyName: company.name
+        }
+      ]
+    }).sort({
+      createdAt: -1
+    }).toArray();
+
+    res.json(offers);
+  } catch (error) {
+    console.error("ERRO /company-offers:", error);
+
+    res.status(500).json({
+      message: "Erro ao buscar ofertas da empresa",
       error: error.message
     });
   }

@@ -1,6 +1,7 @@
 package com.example.estagios.data.remote
 
 import com.example.estagios.model.CandidatarOfertaResponse
+import com.example.estagios.model.CompanyDashboardStatsResponse
 import com.example.estagios.model.LoginRequest
 import com.example.estagios.model.LoginResponse
 import com.example.estagios.model.RegisterRequest
@@ -11,10 +12,12 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 import com.example.estagios.model.CreateInternshipOfferRequest
 import com.example.estagios.model.InternshipOfferResponse
+import com.example.estagios.model.StudentDashboardStatsResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.http.Multipart
 import retrofit2.http.Part
+import retrofit2.http.Query
 
 interface ApiService {
 
@@ -28,7 +31,14 @@ interface ApiService {
     suspend fun getInternshipOffers(): Response<List<InternshipOfferResponse>>
 
     @GET("student-applications")
-    suspend fun getStudentApplications(): List<StudentApplicationResponse>
+    suspend fun getStudentApplications(
+        @Query("userId") userId: String
+    ): List<StudentApplicationResponse>
+
+    @GET("company-applications")
+    suspend fun getCompanyApplications(
+        @Query("userId") userId: String
+    ): List<StudentApplicationResponse>
 
     @POST("api/auth/login")
     suspend fun login(
@@ -53,4 +63,19 @@ interface ApiService {
         @Part("availableFrom") availableFrom: RequestBody,
         @Part cv: MultipartBody.Part
     ): Response<CandidatarOfertaResponse>
+
+    @GET("student-dashboard-stats")
+    suspend fun getStudentDashboardStats(
+        @Query("userId") userId: String
+    ): StudentDashboardStatsResponse
+
+    @GET("company-dashboard-stats")
+    suspend fun getCompanyDashboardStats(
+        @Query("userId") userId: String
+    ): CompanyDashboardStatsResponse
+
+    @GET("company-offers")
+    suspend fun getCompanyOffers(
+        @Query("userId") userId: String
+    ): Response<List<InternshipOfferResponse>>
 }
