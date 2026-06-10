@@ -241,6 +241,9 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
 
         composable(Screen.Mensagens.route) {
             MensagensScreen(
+                userId = userId,
+                nomeUtilizador = nomeUtilizador,
+                tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
                 onVoltar = { navController.popBackStack() }
             )
         }
