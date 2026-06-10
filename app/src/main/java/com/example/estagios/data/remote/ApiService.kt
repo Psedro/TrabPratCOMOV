@@ -86,4 +86,21 @@ interface ApiService {
         @Path("id") applicationId: String,
         @Body request: UpdateApplicationStatusRequest
     ): UpdateApplicationStatusResponse
+
+    @GET("applications/{id}/messages")
+    suspend fun getApplicationMessages(
+        @Path("id") applicationId: String,
+        @Query("userId") userId: String
+    ): List<ApplicationMessageResponse>
+
+    @POST("applications/{id}/messages")
+    suspend fun sendApplicationMessage(
+        @Path("id") applicationId: String,
+        @Body request: SendApplicationMessageRequest
+    ): ApplicationMessageResponse
+
+    @GET("messages/conversations")
+    suspend fun getMessageConversations(
+        @Query("userId") userId: String
+    ): List<ApplicationConversationResponse>
 }

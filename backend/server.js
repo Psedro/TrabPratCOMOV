@@ -1516,6 +1516,430 @@ app.patch("/applications/:id/status", async (req, res) => {
   }
 });
 
+app.get("/messages/conversations", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId || !ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const userObjectId = new ObjectId(userId);
+
+    const user = await db.collection("users").findOne({
+      _id: userObjectId
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
+      });
+    }
+
+    const role = await db.collection("roles").findOne({
+      _id: user.roleId
+    });
+
+    let applicationMatch = null;
+
+    if (role?.name === "student") {
+      const student = await db.collection("students").findOne({
+        userId: userObjectId
+      });
+
+      if (!student) {
+        return res.json([]);
+      }
+
+      applicationMatch = {
+        studentId: student._id
+      };
+    } else if (role?.name === "company") {
+      const company = await db.collection("companies").findOne({
+        ownerUserId: userObjectId
+      });
+
+      if (!company) {
+        return res.json([]);
+      }
+
+      const companyLocations = await db.collection("companyLocations").find({
+        $or: [
+          { companyId: company._id },
+          { companyId: company._id.toString() },
+          { company_id: company._id },
+          { company_id: company._id.toString() }
+        ]
+      }).toArray();
+
+      const companyLocationIds = companyLocations.flatMap(location => [
+        location._id,
+        location._id.toString()
+      ]);
+
+      const offers = await db.collection("internshipOffers").find({
+        $or: [
+          {
+            companyLocationId: {
+              $in: companyLocationIds
+            }
+          },
+          {
+            company_location_id: {
+              $in: companyLocationIds
+            }
+          },
+          {
+            companyName: company.name
+          }
+        ]
+      }).toArray();
+
+      const offerIds = offers.flatMap(offer => [
+        offer._id,
+        offer._id.toString()
+      ]);
+
+      if (offerIds.length === 0) {
+        return res.json([]);
+      }
+
+      applicationMatch = {
+        $or: [
+          {
+            internshipOfferId: {
+              $in: offerIds
+            }
+          },
+          {
+            internship_offer_id: {
+              $in: offerIds
+            }
+          }
+        ]
+      };
+    } else {
+      return res.json([]);
+    }
+
+    const applications = await db.collection("applications").aggregate([
+      {
+        $match: applicationMatch
+      },
+      {
+        $lookup: {
+          from: "internshipOffers",
+          localField: "internshipOfferId",
+          foreignField: "_id",
+          as: "offer"
+        }
+      },
+      {
+        $unwind: {
+          path: "$offer",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "students",
+          localField: "studentId",
+          foreignField: "_id",
+          as: "student"
+        }
+      },
+      {
+        $unwind: {
+          path: "$student",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "student.userId",
+          foreignField: "_id",
+          as: "studentUser"
+        }
+      },
+      {
+        $unwind: {
+          path: "$studentUser",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: { $toString: "$_id" },
+          status: 1,
+          appliedDate: 1,
+          offerTitle: {
+            $ifNull: ["$offer.name", "Oferta sem título"]
+          },
+          companyName: "$offer.companyName",
+          studentName: {
+            $trim: {
+              input: {
+                $concat: [
+                  { $ifNull: ["$studentUser.firstName", ""] },
+                  " ",
+                  { $ifNull: ["$studentUser.lastName", ""] }
+                ]
+              }
+            }
+          },
+          studentEmail: "$studentUser.email"
+        }
+      },
+      {
+        $sort: {
+          appliedDate: -1
+        }
+      }
+    ]).toArray();
+
+    const conversations = [];
+
+    for (const application of applications) {
+      const applicationObjectId = new ObjectId(application._id);
+
+      const lastMessages = await db.collection("messages")
+        .find({
+          applicationId: applicationObjectId,
+          $or: [
+            { senderId: userObjectId },
+            { receiverId: userObjectId }
+          ]
+        })
+        .sort({ sentAt: -1 })
+        .limit(1)
+        .toArray();
+
+      const lastMessage = lastMessages[0] || null;
+
+      conversations.push({
+        applicationId: application._id,
+        offerTitle: application.offerTitle,
+        companyName: application.companyName || null,
+        studentName: application.studentName || null,
+        studentEmail: application.studentEmail || null,
+        status: application.status || "pending",
+        lastMessage: lastMessage ? lastMessage.content : null,
+        lastMessageAt: lastMessage ? lastMessage.sentAt.toISOString() : null
+      });
+    }
+
+    res.json(conversations);
+  } catch (error) {
+    console.error("ERRO AO LISTAR CONVERSAS:", error);
+
+    res.status(500).json({
+      message: "Erro ao listar conversas",
+      error: error.message
+    });
+  }
+});
+
+app.get("/applications/:id/messages", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "applicationId inválido"
+      });
+    }
+
+    if (!userId || !ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const applicationId = new ObjectId(id);
+    const userObjectId = new ObjectId(userId);
+
+    const messages = await db.collection("messages")
+      .find({
+        applicationId: applicationId,
+        $or: [
+          { senderId: userObjectId },
+          { receiverId: userObjectId }
+        ]
+      })
+      .sort({ sentAt: 1 })
+      .toArray();
+
+    res.json(
+      messages.map(message => ({
+        _id: message._id.toString(),
+        applicationId: message.applicationId?.toString() || id,
+        senderUserId: message.senderId.toString(),
+        receiverUserId: message.receiverId.toString(),
+        content: message.content,
+        createdAt: message.sentAt.toISOString()
+      }))
+    );
+  } catch (error) {
+    console.error("ERRO AO LISTAR MENSAGENS:", error);
+
+    res.status(500).json({
+      message: "Erro ao listar mensagens",
+      error: error.message
+    });
+  }
+});
+
+app.post("/applications/:id/messages", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { senderUserId, content } = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "applicationId inválido"
+      });
+    }
+
+    if (!senderUserId || !ObjectId.isValid(senderUserId)) {
+      return res.status(400).json({
+        message: "senderUserId inválido"
+      });
+    }
+
+    if (!content || content.trim() === "") {
+      return res.status(400).json({
+        message: "Mensagem vazia"
+      });
+    }
+
+    const applicationId = new ObjectId(id);
+    const senderObjectId = new ObjectId(senderUserId);
+
+    const application = await db.collection("applications").findOne({
+      _id: applicationId
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        message: "Candidatura não encontrada"
+      });
+    }
+
+    const senderUser = await db.collection("users").findOne({
+      _id: senderObjectId
+    });
+
+    if (!senderUser) {
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
+      });
+    }
+
+    const role = await db.collection("roles").findOne({
+      _id: senderUser.roleId
+    });
+
+    let receiverUserId = null;
+
+    if (role?.name === "student") {
+      const student = await db.collection("students").findOne({
+        userId: senderObjectId
+      });
+
+      if (!student || student._id.toString() !== application.studentId.toString()) {
+        return res.status(403).json({
+          message: "Esta candidatura não pertence a este aluno"
+        });
+      }
+
+      const offer = await db.collection("internshipOffers").findOne({
+        _id: application.internshipOfferId
+      });
+
+      if (!offer) {
+        return res.status(404).json({
+          message: "Oferta não encontrada"
+        });
+      }
+
+      let company = null;
+
+      if (offer.companyLocationId) {
+        const companyLocation = await db.collection("companyLocations").findOne({
+          _id: offer.companyLocationId
+        });
+
+        if (companyLocation) {
+          company = await db.collection("companies").findOne({
+            _id: companyLocation.companyId
+          });
+        }
+      }
+
+      if (!company && offer.companyName) {
+        company = await db.collection("companies").findOne({
+          name: offer.companyName
+        });
+      }
+
+      if (!company) {
+        return res.status(404).json({
+          message: "Empresa da oferta não encontrada"
+        });
+      }
+
+      receiverUserId = company.ownerUserId;
+    } else if (role?.name === "company") {
+      const student = await db.collection("students").findOne({
+        _id: application.studentId
+      });
+
+      if (!student) {
+        return res.status(404).json({
+          message: "Estudante não encontrado"
+        });
+      }
+
+      receiverUserId = student.userId;
+    } else {
+      return res.status(403).json({
+        message: "Apenas alunos e empresas podem enviar mensagens"
+      });
+    }
+
+    const newMessage = {
+      content: content.trim(),
+      sentAt: new Date(),
+      isRead: false,
+      senderId: senderObjectId,
+      receiverId: receiverUserId,
+      applicationId: applicationId
+    };
+
+    const result = await db.collection("messages").insertOne(newMessage);
+
+    res.status(201).json({
+      _id: result.insertedId.toString(),
+      applicationId: applicationId.toString(),
+      senderUserId: senderObjectId.toString(),
+      receiverUserId: receiverUserId.toString(),
+      content: newMessage.content,
+      createdAt: newMessage.sentAt.toISOString()
+    });
+  } catch (error) {
+    console.error("ERRO AO ENVIAR MENSAGEM:", error);
+
+    res.status(500).json({
+      message: "Erro ao enviar mensagem",
+      error: error.message
+    });
+  }
+});
+
 connectToMongo().then(() => {
   app.listen(PORT, () => {
     console.log(`Servidor a correr em http://localhost:${PORT}`);
