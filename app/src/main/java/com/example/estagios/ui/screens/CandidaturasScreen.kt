@@ -1,5 +1,7 @@
 package com.example.estagios.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -15,21 +17,23 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.estagios.data.remote.CreateSupervisionRequest
 import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.data.remote.StudentApplicationResponse
+import com.example.estagios.data.remote.SupervisionRequestResponse
+import com.example.estagios.data.remote.TeacherResponse
 import com.example.estagios.data.remote.UpdateApplicationStatusRequest
-import com.example.estagios.ui.common.ProfileTopBar
-import com.example.estagios.ui.theme.Azul
-import com.example.estagios.ui.theme.TextoEmpresa
-import com.example.estagios.ui.theme.TextoSecundario
+import com.example.estagios.data.remote.UpdateSupervisionRequestStatusRequest
 import kotlinx.coroutines.launch
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.ui.platform.LocalContext
+
+private val Azul = Color(0xFF2B5CE6)
+private val TextoEmpresa = Color(0xFF555555)
+private val TextoSecundario = Color(0xFF777777)
 
 @Composable
 fun CandidaturasScreen(
@@ -47,6 +51,10 @@ fun CandidaturasScreen(
     var erro by remember { mutableStateOf<String?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
 
+    var docentes by remember { mutableStateOf<List<TeacherResponse>>(emptyList()) }
+    var pedidosOrientacao by remember { mutableStateOf<List<SupervisionRequestResponse>>(emptyList()) }
+    var candidaturaParaOrientador by remember { mutableStateOf<StudentApplicationResponse?>(null) }
+
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -59,17 +67,27 @@ fun CandidaturasScreen(
                 return@LaunchedEffect
             }
 
-            candidaturas = when (tipoUtilizador) {
+            when (tipoUtilizador) {
                 TipoUtilizador.ALUNO -> {
-                    RetrofitClient.apiService.getStudentApplications(userId)
+                    candidaturas = RetrofitClient.apiService.getStudentApplications(userId)
+                    docentes = RetrofitClient.apiService.getTeachers()
+                    pedidosOrientacao = RetrofitClient.apiService.getSupervisionRequests(
+                        studentUserId = userId
+                    )
                 }
 
                 TipoUtilizador.EMPRESA -> {
-                    RetrofitClient.apiService.getCompanyApplications(userId)
+                    candidaturas = RetrofitClient.apiService.getCompanyApplications(userId)
+                    docentes = emptyList()
+                    pedidosOrientacao = emptyList()
                 }
 
                 TipoUtilizador.DOCENTE -> {
-                    emptyList()
+                    candidaturas = emptyList()
+                    docentes = emptyList()
+                    pedidosOrientacao = RetrofitClient.apiService.getSupervisionRequests(
+                        teacherUserId = userId
+                    )
                 }
             }
 
@@ -101,6 +119,16 @@ fun CandidaturasScreen(
                 (it.studentEmail ?: "").contains(pesquisa, ignoreCase = true)
     }
 
+    val pedidosOrientacaoFiltrados = pedidosOrientacao.filter {
+        pesquisa.isBlank() ||
+                it.offerTitle.contains(pesquisa, ignoreCase = true) ||
+                (it.companyName ?: "").contains(pesquisa, ignoreCase = true) ||
+                (it.studentName ?: "").contains(pesquisa, ignoreCase = true) ||
+                (it.studentEmail ?: "").contains(pesquisa, ignoreCase = true) ||
+                (it.teacherName ?: "").contains(pesquisa, ignoreCase = true) ||
+                (it.teacherEmail ?: "").contains(pesquisa, ignoreCase = true)
+    }
+
     fun atualizarEstadoCandidatura(candidatura: StudentApplicationResponse, novoEstado: String) {
         scope.launch {
             try {
@@ -128,6 +156,60 @@ fun CandidaturasScreen(
         }
     }
 
+    fun pedirOrientador(candidatura: StudentApplicationResponse, docente: TeacherResponse) {
+        scope.launch {
+            try {
+                RetrofitClient.apiService.createSupervisionRequest(
+                    CreateSupervisionRequest(
+                        applicationId = candidatura._id,
+                        studentUserId = userId,
+                        teacherUserId = docente._id
+                    )
+                )
+
+                candidaturaParaOrientador = null
+
+                snackbarHostState.showSnackbar(
+                    "Pedido de orientação enviado ao docente"
+                )
+
+                refreshKey++
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar(
+                    "Erro ao enviar pedido de orientação"
+                )
+            }
+        }
+    }
+
+    fun atualizarPedidoOrientacao(pedido: SupervisionRequestResponse, novoEstado: String) {
+        scope.launch {
+            try {
+                RetrofitClient.apiService.updateSupervisionRequestStatus(
+                    requestId = pedido._id,
+                    request = UpdateSupervisionRequestStatusRequest(
+                        teacherUserId = userId,
+                        status = novoEstado
+                    )
+                )
+
+                snackbarHostState.showSnackbar(
+                    if (novoEstado == "accepted") {
+                        "Pedido de orientação aceite"
+                    } else {
+                        "Pedido de orientação recusado"
+                    }
+                )
+
+                refreshKey++
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar(
+                    "Erro ao atualizar pedido de orientação"
+                )
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -136,11 +218,14 @@ fun CandidaturasScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            ProfileTopBar(
+            TopBarCandidaturas(
+                titulo = if (tipoUtilizador == TipoUtilizador.DOCENTE) {
+                    "PEDIDOS DE ORIENTAÇÃO"
+                } else {
+                    "CANDIDATURAS"
+                },
                 nome = nomeUtilizador.uppercase(),
-                mostrarNotificacoes = false,
-                onVoltar = onVoltar,
-                onLogout = onLogout
+                onVoltar = onVoltar
             )
 
             OutlinedTextField(
@@ -150,9 +235,22 @@ fun CandidaturasScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 leadingIcon = {
-                    Icon(Icons.Outlined.Search, contentDescription = null, tint = TextoSecundario)
+                    Icon(
+                        Icons.Outlined.Search,
+                        contentDescription = null,
+                        tint = TextoSecundario
+                    )
                 },
-                placeholder = { Text("Pesquisar...", color = TextoSecundario) },
+                placeholder = {
+                    Text(
+                        text = if (tipoUtilizador == TipoUtilizador.DOCENTE) {
+                            "Pesquisar pedidos..."
+                        } else {
+                            "Pesquisar..."
+                        },
+                        color = TextoSecundario
+                    )
+                },
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = Color(0xFFEEEEEE),
@@ -163,45 +261,47 @@ fun CandidaturasScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .background(Color(0xFFF0F0F0), RoundedCornerShape(24.dp))
-                    .padding(4.dp)
-            ) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    FiltroTab(
-                        texto = "Todas(${todas.size})",
-                        ativo = filtroAtivo == null,
-                        onClick = { filtroAtivo = null },
-                        modifier = Modifier.weight(1f)
-                    )
+            if (tipoUtilizador != TipoUtilizador.DOCENTE) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .background(Color(0xFFF0F0F0), RoundedCornerShape(24.dp))
+                        .padding(4.dp)
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        FiltroTab(
+                            texto = "Todas(${todas.size})",
+                            ativo = filtroAtivo == null,
+                            onClick = { filtroAtivo = null },
+                            modifier = Modifier.weight(1f)
+                        )
 
-                    FiltroTab(
-                        texto = "Pend.(${pendentes.size})",
-                        ativo = filtroAtivo == "pending",
-                        onClick = { filtroAtivo = "pending" },
-                        modifier = Modifier.weight(1f)
-                    )
+                        FiltroTab(
+                            texto = "Pend.(${pendentes.size})",
+                            ativo = filtroAtivo == "pending",
+                            onClick = { filtroAtivo = "pending" },
+                            modifier = Modifier.weight(1f)
+                        )
 
-                    FiltroTab(
-                        texto = "Aceite(${aceites.size})",
-                        ativo = filtroAtivo == "accepted",
-                        onClick = { filtroAtivo = "accepted" },
-                        modifier = Modifier.weight(1f)
-                    )
+                        FiltroTab(
+                            texto = "Aceite(${aceites.size})",
+                            ativo = filtroAtivo == "accepted",
+                            onClick = { filtroAtivo = "accepted" },
+                            modifier = Modifier.weight(1f)
+                        )
 
-                    FiltroTab(
-                        texto = "Rec.(${recusadas.size})",
-                        ativo = filtroAtivo == "rejected",
-                        onClick = { filtroAtivo = "rejected" },
-                        modifier = Modifier.weight(1f)
-                    )
+                        FiltroTab(
+                            texto = "Rec.(${recusadas.size})",
+                            ativo = filtroAtivo == "rejected",
+                            onClick = { filtroAtivo = "rejected" },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             when {
                 isLoading -> {
@@ -222,6 +322,35 @@ fun CandidaturasScreen(
                     }
                 }
 
+                tipoUtilizador == TipoUtilizador.DOCENTE -> {
+                    if (pedidosOrientacaoFiltrados.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Sem pedidos de orientação")
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(pedidosOrientacaoFiltrados) { pedido ->
+                                PedidoOrientacaoCard(
+                                    pedido = pedido,
+                                    onAceitar = {
+                                        atualizarPedidoOrientacao(pedido, "accepted")
+                                    },
+                                    onRecusar = {
+                                        atualizarPedidoOrientacao(pedido, "rejected")
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 candidaturasFiltradas.isEmpty() -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -238,9 +367,20 @@ fun CandidaturasScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         items(candidaturasFiltradas) { candidatura ->
+                            val pedidoOrientacao = pedidosOrientacao
+                                .filter {
+                                    it.applicationId == candidatura._id &&
+                                            it.status != "rejected"
+                                }
+                                .sortedBy {
+                                    if (it.status == "accepted") 0 else 1
+                                }
+                                .firstOrNull()
+
                             CandidaturaCard(
                                 candidatura = candidatura,
                                 tipoUtilizador = tipoUtilizador,
+                                pedidoOrientacao = pedidoOrientacao,
                                 onVerDetalhes = {
                                     candidaturaSelecionada = candidatura
                                 },
@@ -249,6 +389,9 @@ fun CandidaturasScreen(
                                 },
                                 onRecusar = {
                                     atualizarEstadoCandidatura(candidatura, "rejected")
+                                },
+                                onEscolherOrientador = {
+                                    candidaturaParaOrientador = candidatura
                                 }
                             )
                         }
@@ -267,6 +410,19 @@ fun CandidaturasScreen(
                 },
                 onRecusar = {
                     atualizarEstadoCandidatura(candidatura, "rejected")
+                }
+            )
+        }
+
+        candidaturaParaOrientador?.let { candidatura ->
+            EscolherOrientadorDialog(
+                candidatura = candidatura,
+                docentes = docentes,
+                onFechar = {
+                    candidaturaParaOrientador = null
+                },
+                onEscolher = { docente ->
+                    pedirOrientador(candidatura, docente)
                 }
             )
         }
@@ -313,9 +469,11 @@ fun FiltroTab(
 fun CandidaturaCard(
     candidatura: StudentApplicationResponse,
     tipoUtilizador: TipoUtilizador,
+    pedidoOrientacao: SupervisionRequestResponse?,
     onVerDetalhes: () -> Unit,
     onAceitar: () -> Unit,
-    onRecusar: () -> Unit
+    onRecusar: () -> Unit,
+    onEscolherOrientador: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -421,6 +579,43 @@ fun CandidaturaCard(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
+        if (tipoUtilizador == TipoUtilizador.ALUNO && candidatura.status == "accepted") {
+            when (pedidoOrientacao?.status) {
+                "pending" -> {
+                    Text(
+                        text = "Pedido de orientação pendente: ${pedidoOrientacao.teacherName ?: "Docente"}",
+                        fontSize = 12.sp,
+                        color = Color(0xFFF57F17),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                "accepted" -> {
+                    Text(
+                        text = "Orientador aceite: ${pedidoOrientacao.teacherName ?: "Docente"}",
+                        fontSize = 12.sp,
+                        color = Color(0xFF2E7D32),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                else -> {
+                    Button(
+                        onClick = onEscolherOrientador,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Azul)
+                    ) {
+                        Text("Escolher orientador", fontSize = 13.sp)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         Button(
             onClick = onVerDetalhes,
             modifier = Modifier
@@ -431,6 +626,190 @@ fun CandidaturaCard(
         ) {
             Text("Ver detalhes", fontSize = 13.sp)
         }
+    }
+}
+
+@Composable
+fun EscolherOrientadorDialog(
+    candidatura: StudentApplicationResponse,
+    docentes: List<TeacherResponse>,
+    onFechar: () -> Unit,
+    onEscolher: (TeacherResponse) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onFechar,
+        title = {
+            Text(
+                text = "Escolher orientador",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = candidatura.offerTitle,
+                    fontSize = 13.sp,
+                    color = TextoSecundario
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (docentes.isEmpty()) {
+                    Text(
+                        text = "Não existem docentes disponíveis.",
+                        fontSize = 13.sp,
+                        color = TextoSecundario
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 320.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(docentes) { docente ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        1.dp,
+                                        Color(0xFFE0E0E0),
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .padding(12.dp)
+                            ) {
+                                Text(
+                                    text = docente.name,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+
+                                Text(
+                                    text = docente.email,
+                                    fontSize = 12.sp,
+                                    color = TextoSecundario
+                                )
+
+                                Text(
+                                    text = docente.department ?: "Departamento não definido",
+                                    fontSize = 12.sp,
+                                    color = TextoSecundario
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Button(
+                                    onClick = {
+                                        onEscolher(docente)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Azul)
+                                ) {
+                                    Text("Enviar pedido")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onFechar) {
+                Text("Fechar")
+            }
+        }
+    )
+}
+
+@Composable
+fun PedidoOrientacaoCard(
+    pedido: SupervisionRequestResponse,
+    onAceitar: () -> Unit,
+    onRecusar: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(16.dp))
+            .padding(16.dp)
+    ) {
+        Text(
+            text = pedido.offerTitle,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            color = Azul
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "Aluno: ${pedido.studentName?.takeIf { it.isNotBlank() } ?: pedido.studentEmail ?: "Aluno não definido"}",
+            fontSize = 13.sp,
+            color = TextoEmpresa
+        )
+
+        Text(
+            text = "Empresa: ${pedido.companyName ?: "Empresa não definida"}",
+            fontSize = 13.sp,
+            color = TextoSecundario
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        EstadoPedidoOrientacaoBadge(pedido.status)
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (pedido.status == "pending") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = onRecusar,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020))
+                ) {
+                    Text("Recusar", fontSize = 13.sp)
+                }
+
+                Button(
+                    onClick = onAceitar,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                ) {
+                    Text("Aceitar", fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EstadoPedidoOrientacaoBadge(status: String) {
+    val (texto, cor, corTexto, icone) = when (status) {
+        "accepted" -> Quadruple("Aceite", Color(0xFFE8F5E9), Color(0xFF2E7D32), "✅")
+        "rejected" -> Quadruple("Recusado", Color(0xFFFFEBEE), Color(0xFFC62828), "❌")
+        else -> Quadruple("Pendente", Color(0xFFFFFDE7), Color(0xFFF57F17), "⏱")
+    }
+
+    Box(
+        modifier = Modifier
+            .background(cor, RoundedCornerShape(20.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = "$icone $texto",
+            color = corTexto,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
@@ -628,6 +1007,59 @@ fun EstadoBadge(status: String) {
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+@Composable
+fun TopBarCandidaturas(
+    titulo: String,
+    nome: String,
+    onVoltar: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onVoltar) {
+            Text("‹", fontSize = 30.sp, fontWeight = FontWeight.Light)
+        }
+
+        Spacer(modifier = Modifier.width(4.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = titulo,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                letterSpacing = 0.5.sp,
+                maxLines = 1
+            )
+
+            Text(
+                text = nome,
+                color = Color(0xFF777777),
+                fontSize = 12.sp,
+                maxLines = 1
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(Color(0xFFDDDDDD), RoundedCornerShape(50.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = nome.take(1).ifBlank { "?" },
+                fontWeight = FontWeight.Bold,
+                color = Color.Gray
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
     }
 }
 

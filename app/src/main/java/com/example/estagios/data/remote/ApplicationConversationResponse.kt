@@ -8,5 +8,8 @@ data class ApplicationConversationResponse(
     val studentEmail: String? = null,
     val status: String,
     val lastMessage: String? = null,
-    val lastMessageAt: String? = null
+    val lastMessageAt: String? = null,
+    val otherUserId: String? = null,
+    val otherUserName: String? = null,
+    val conversationType: String? = null
 )

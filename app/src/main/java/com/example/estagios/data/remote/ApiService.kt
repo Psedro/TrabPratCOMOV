@@ -90,7 +90,8 @@ interface ApiService {
     @GET("applications/{id}/messages")
     suspend fun getApplicationMessages(
         @Path("id") applicationId: String,
-        @Query("userId") userId: String
+        @Query("userId") userId: String,
+        @Query("otherUserId") otherUserId: String? = null
     ): List<ApplicationMessageResponse>
 
     @POST("applications/{id}/messages")
@@ -103,4 +104,24 @@ interface ApiService {
     suspend fun getMessageConversations(
         @Query("userId") userId: String
     ): List<ApplicationConversationResponse>
+
+    @GET("teachers")
+    suspend fun getTeachers(): List<TeacherResponse>
+
+    @POST("supervision-requests")
+    suspend fun createSupervisionRequest(
+        @Body request: CreateSupervisionRequest
+    ): CreateSupervisionResponse
+
+    @GET("supervision-requests")
+    suspend fun getSupervisionRequests(
+        @Query("teacherUserId") teacherUserId: String? = null,
+        @Query("studentUserId") studentUserId: String? = null
+    ): List<SupervisionRequestResponse>
+
+    @PATCH("supervision-requests/{id}/status")
+    suspend fun updateSupervisionRequestStatus(
+        @Path("id") requestId: String,
+        @Body request: UpdateSupervisionRequestStatusRequest
+    ): UpdateSupervisionRequestStatusResponse
 }
