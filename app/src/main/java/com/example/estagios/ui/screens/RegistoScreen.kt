@@ -20,6 +20,9 @@ import com.example.estagios.model.TipoUtilizadorRegisto
 import com.example.estagios.model.EstudanteRegisterData
 import com.example.estagios.model.ProfessorRegisterData
 import com.example.estagios.model.EmpresaRegisterData
+import androidx.compose.ui.res.stringResource
+import com.example.estagios.R
+import com.example.estagios.ui.common.LanguageToggleButton
 
 @Composable
 fun RegistoScreen(
@@ -57,216 +60,224 @@ fun RegistoScreen(
 
     var erro by remember { mutableStateOf<String?>(null) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text(
-            text = "Criar conta",
-            style = MaterialTheme.typography.headlineMedium
-        )
-
-        Text(
-            text = "Seleciona o tipo de utilizador",
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        TipoUtilizadorSelector(
-            tipoSelecionado = tipoUtilizador,
-            onTipoSelecionado = { tipoUtilizador = it }
-        )
-
-        HorizontalDivider()
-
-        Text(
-            text = "Dados da conta",
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        OutlinedTextField(
-            value = firstName,
-            onValueChange = { firstName = it },
-            label = { Text("Primeiro nome") },
-            leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        OutlinedTextField(
-            value = lastName,
-            onValueChange = { lastName = it },
-            label = { Text("Apelido") },
-            leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        OutlinedTextField(
-            value = username,
-            onValueChange = { username = it },
-            label = { Text("Nome de utilizador") },
-            leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            leadingIcon = { Icon(Icons.Outlined.Email, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Palavra-passe") },
-            leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        OutlinedTextField(
-            value = confirmarPassword,
-            onValueChange = { confirmarPassword = it },
-            label = { Text("Confirmar palavra-passe") },
-            leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        HorizontalDivider()
-
-        when (tipoUtilizador) {
-            TipoUtilizadorRegisto.ESTUDANTE -> {
-                CamposEstudante(
-                    numeroAluno = numeroAluno,
-                    onNumeroAlunoChange = { numeroAluno = it },
-                    curso = curso,
-                    onCursoChange = { curso = it },
-                    ano = ano,
-                    onAnoChange = { ano = it }
-                )
-            }
-
-            TipoUtilizadorRegisto.PROFESSOR -> {
-                CamposProfessor(
-                    numeroProfessor = numeroProfessor,
-                    onNumeroProfessorChange = { numeroProfessor = it },
-                    departamento = departamento,
-                    onDepartamentoChange = { departamento = it }
-                )
-            }
-
-            TipoUtilizadorRegisto.EMPRESA -> {
-                CamposEmpresa(
-                    nomeEmpresa = nomeEmpresa,
-                    onNomeEmpresaChange = { nomeEmpresa = it },
-                    websiteEmpresa = websiteEmpresa,
-                    onWebsiteEmpresaChange = { websiteEmpresa = it },
-                    descricaoEmpresa = descricaoEmpresa,
-                    onDescricaoEmpresaChange = { descricaoEmpresa = it },
-
-                    rua = rua,
-                    onRuaChange = { rua = it },
-                    numero = numero,
-                    onNumeroChange = { numero = it },
-                    cidade = cidade,
-                    onCidadeChange = { cidade = it },
-                    codigoPostal = codigoPostal,
-                    onCodigoPostalChange = { codigoPostal = it },
-                    isHeadquarters = isHeadquarters,
-                    onIsHeadquartersChange = { isHeadquarters = it }
-                )
-            }
-        }
-
-        erro?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error
+        Box(modifier = Modifier.fillMaxSize()) {
+            LanguageToggleButton(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
             )
-        }
 
-        Button(
-            onClick = {
-                erro = validarRegisto(
-                    tipoUtilizador = tipoUtilizador,
-                    firstName = firstName,
-                    lastName = lastName,
-                    username = username,
-                    email = email,
-                    password = password,
-                    confirmarPassword = confirmarPassword,
-                    numeroAluno = numeroAluno,
-                    curso = curso,
-                    ano = ano,
-                    numeroProfessor = numeroProfessor,
-                    departamento = departamento,
-                    nomeEmpresa = nomeEmpresa,
-                    rua = rua,
-                    numero = numero,
-                    cidade = cidade,
-                    codigoPostal = codigoPostal
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = 24.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.register_title),
+                    style = MaterialTheme.typography.headlineMedium
                 )
 
-                if (erro == null) {
-                    val pedidoRegisto = RegisterRequest(
-                        nome = "$firstName $lastName".trim(),
-                        email = email.trim(),
-                        username = username.trim(),
+                Text(
+                    text = stringResource(R.string.register_select_user_type),
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+            TipoUtilizadorSelector(
+                tipoSelecionado = tipoUtilizador,
+                onTipoSelecionado = { tipoUtilizador = it }
+            )
+
+            HorizontalDivider()
+
+                Text(
+                    text = stringResource(R.string.register_account_data),
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+            OutlinedTextField(
+                value = firstName,
+                onValueChange = { firstName = it },
+                label = { Text(stringResource(R.string.register_first_name)) },
+                leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            OutlinedTextField(
+                value = lastName,
+                onValueChange = { lastName = it },
+                label = { Text(stringResource(R.string.register_last_name)) },
+                leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text(stringResource(R.string.register_username)) },
+                leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text(stringResource(R.string.register_email)) },
+                leadingIcon = { Icon(Icons.Outlined.Email, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text(stringResource(R.string.register_password)) },
+                leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            OutlinedTextField(
+                value = confirmarPassword,
+                onValueChange = { confirmarPassword = it },
+                label = { Text(stringResource(R.string.register_confirm_password)) },
+                leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            HorizontalDivider()
+
+            when (tipoUtilizador) {
+                TipoUtilizadorRegisto.ESTUDANTE -> {
+                    CamposEstudante(
+                        numeroAluno = numeroAluno,
+                        onNumeroAlunoChange = { numeroAluno = it },
+                        curso = curso,
+                        onCursoChange = { curso = it },
+                        ano = ano,
+                        onAnoChange = { ano = it }
+                    )
+                }
+
+                TipoUtilizadorRegisto.PROFESSOR -> {
+                    CamposProfessor(
+                        numeroProfessor = numeroProfessor,
+                        onNumeroProfessorChange = { numeroProfessor = it },
+                        departamento = departamento,
+                        onDepartamentoChange = { departamento = it }
+                    )
+                }
+
+                TipoUtilizadorRegisto.EMPRESA -> {
+                    CamposEmpresa(
+                        nomeEmpresa = nomeEmpresa,
+                        onNomeEmpresaChange = { nomeEmpresa = it },
+                        websiteEmpresa = websiteEmpresa,
+                        onWebsiteEmpresaChange = { websiteEmpresa = it },
+                        descricaoEmpresa = descricaoEmpresa,
+                        onDescricaoEmpresaChange = { descricaoEmpresa = it },
+
+                        rua = rua,
+                        onRuaChange = { rua = it },
+                        numero = numero,
+                        onNumeroChange = { numero = it },
+                        cidade = cidade,
+                        onCidadeChange = { cidade = it },
+                        codigoPostal = codigoPostal,
+                        onCodigoPostalChange = { codigoPostal = it },
+                        isHeadquarters = isHeadquarters,
+                        onIsHeadquartersChange = { isHeadquarters = it }
+                    )
+                }
+            }
+
+            erro?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            Button(
+                onClick = {
+                    erro = validarRegisto(
+                        tipoUtilizador = tipoUtilizador,
+                        firstName = firstName,
+                        lastName = lastName,
+                        username = username,
+                        email = email,
                         password = password,
-                        tipo = tipoUtilizador.valorApi,
-
-                        estudante = if (tipoUtilizador == TipoUtilizadorRegisto.ESTUDANTE) {
-                            EstudanteRegisterData(
-                                numeroAluno = numeroAluno,
-                                curso = curso,
-                                ano = ano
-                            )
-                        } else null,
-
-                        professor = if (tipoUtilizador == TipoUtilizadorRegisto.PROFESSOR) {
-                            ProfessorRegisterData(
-                                numeroProfessor = numeroProfessor,
-                                departamento = departamento
-                            )
-                        } else null,
-
-                        empresa = if (tipoUtilizador == TipoUtilizadorRegisto.EMPRESA) {
-                            EmpresaRegisterData(
-                                nomeEmpresa = nomeEmpresa.trim(),
-                                website = websiteEmpresa.trim(),
-                                descricao = descricaoEmpresa.trim(),
-                                rua = rua.trim(),
-                                numero = numero.trim(),
-                                cidade = cidade.trim(),
-                                codigoPostal = codigoPostal.trim(),
-                                isHeadquarters = isHeadquarters
-                            )
-                        } else null
+                        confirmarPassword = confirmarPassword,
+                        numeroAluno = numeroAluno,
+                        curso = curso,
+                        ano = ano,
+                        numeroProfessor = numeroProfessor,
+                        departamento = departamento,
+                        nomeEmpresa = nomeEmpresa,
+                        rua = rua,
+                        numero = numero,
+                        cidade = cidade,
+                        codigoPostal = codigoPostal
                     )
 
-                    onRegistar(pedidoRegisto)
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Criar conta")
-        }
+                    if (erro == null) {
+                        val pedidoRegisto = RegisterRequest(
+                            nome = "$firstName $lastName".trim(),
+                            email = email.trim(),
+                            username = username.trim(),
+                            password = password,
+                            tipo = tipoUtilizador.valorApi,
 
-        TextButton(
-            onClick = onVoltarLogin,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        ) {
-            Text("Já tenho conta")
+                            estudante = if (tipoUtilizador == TipoUtilizadorRegisto.ESTUDANTE) {
+                                EstudanteRegisterData(
+                                    numeroAluno = numeroAluno,
+                                    curso = curso,
+                                    ano = ano
+                                )
+                            } else null,
+
+                            professor = if (tipoUtilizador == TipoUtilizadorRegisto.PROFESSOR) {
+                                ProfessorRegisterData(
+                                    numeroProfessor = numeroProfessor,
+                                    departamento = departamento
+                                )
+                            } else null,
+
+                            empresa = if (tipoUtilizador == TipoUtilizadorRegisto.EMPRESA) {
+                                EmpresaRegisterData(
+                                    nomeEmpresa = nomeEmpresa.trim(),
+                                    website = websiteEmpresa.trim(),
+                                    descricao = descricaoEmpresa.trim(),
+                                    rua = rua.trim(),
+                                    numero = numero.trim(),
+                                    cidade = cidade.trim(),
+                                    codigoPostal = codigoPostal.trim(),
+                                    isHeadquarters = isHeadquarters
+                                )
+                            } else null
+                        )
+
+                        onRegistar(pedidoRegisto)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.register_button))
+            }
+
+            TextButton(
+                onClick = onVoltarLogin,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Text(stringResource(R.string.register_have_account))
+            }
         }
     }
 }
@@ -290,11 +301,20 @@ fun TipoUtilizadorSelector(
                 )
 
                 Text(
-                    text = tipo.label,
+                    text = textoTipoUtilizador(tipo),
                     style = MaterialTheme.typography.bodyLarge
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun textoTipoUtilizador(tipo: TipoUtilizadorRegisto): String {
+    return when (tipo) {
+        TipoUtilizadorRegisto.ESTUDANTE -> stringResource(R.string.register_type_student)
+        TipoUtilizadorRegisto.PROFESSOR -> stringResource(R.string.register_type_teacher)
+        TipoUtilizadorRegisto.EMPRESA -> stringResource(R.string.register_type_company)
     }
 }
 

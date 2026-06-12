@@ -1,4 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Estágios</string>
+
+    <string name="logout">Sair</string>
+    <string name="language_english">English</string>
+    <string name="language_portuguese">Português</string>
+
+    <string name="home_ver_ofertas">Ver Ofertas disponíveis</string>
+    <string name="home_minhas_candidaturas">As minhas candidaturas</string>
+    <string name="home_mensagens">Mensagens</string>
+
+    <string name="home_criar_oferta">Criar oferta</string>
+    <string name="home_ver_candidaturas">Ver Candidaturas</string>
+    <string name="home_minhas_ofertas">As minhas ofertas</string>
+
+    <string name="stats_candidaturas_ativas">Candidaturas ativas</string>
+    <string name="stats_candidaturas_aceites">Candidaturas aceites</string>
+    <string name="stats_mensagens_novas">Mensagens novas</string>
+
+    <string name="stats_ofertas">Ofertas</string>
+    <string name="stats_candidaturas_recebidas">Candidaturas recebidas</string>
+    <string name="stats_candidaturas_pendentes">Candidaturas pendentes</string>
+
+
+
+    <string name="change_language">Mudar idioma</string>
+
+    <string name="login_title">Entrar</string>
+    <string name="login_email">Email</string>
+    <string name="login_password">Palavra-passe</string>
+    <string name="login_button">Entrar</string>
+    <string name="login_or">OU</string>
+    <string name="login_no_account">Não tens conta?</string>
+    <string name="login_register">Regista-te</string>
+
+    <string name="register_title">Criar conta</string>
+    <string name="register_select_user_type">Seleciona o tipo de utilizador</string>
+    <string name="register_account_data">Dados da conta</string>
+    <string name="register_first_name">Primeiro nome</string>
+    <string name="register_last_name">Apelido</string>
+    <string name="register_username">Nome de utilizador</string>
+    <string name="register_email">Email</string>
+    <string name="register_password">Palavra-passe</string>
+    <string name="register_confirm_password">Confirmar palavra-passe</string>
+    <string name="register_button">Criar conta</string>
+    <string name="register_have_account">Já tenho conta</string>
+
+    <string name="register_type_student">Estudante</string>
+    <string name="register_type_teacher">Professor</string>
+    <string name="register_type_company">Empresa</string>
 </resources>

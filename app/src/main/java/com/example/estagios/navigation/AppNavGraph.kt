@@ -11,15 +11,27 @@ import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.model.LoginRequest
 import com.example.estagios.ui.screens.*
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @Composable
 fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var nomeUtilizador by remember { mutableStateOf("") }
-    var tipoUtilizador by remember { mutableStateOf<TipoUtilizador?>(null) }
-    var userId by remember { mutableStateOf("") }
+    var nomeUtilizador by rememberSaveable { mutableStateOf("") }
+    var userId by rememberSaveable { mutableStateOf("") }
+
+    var tipoUtilizador by rememberSaveable(
+        stateSaver = Saver(
+            save = { tipo -> tipo?.name },
+            restore = { nomeTipo ->
+                nomeTipo?.let { TipoUtilizador.valueOf(it) }
+            }
+        )
+    ) {
+        mutableStateOf<TipoUtilizador?>(null)
+    }
 
     NavHost(
         navController = navController,
@@ -244,7 +256,16 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                 userId = userId,
                 nomeUtilizador = nomeUtilizador,
                 tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
-                onVoltar = { navController.popBackStack() }
+                onVoltar = { navController.popBackStack() },
+                onLogout = {
+                    nomeUtilizador = ""
+                    userId = ""
+                    tipoUtilizador = null
+
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0)
+                    }
+                }
             )
         }
     }

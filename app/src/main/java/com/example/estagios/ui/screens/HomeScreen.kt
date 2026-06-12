@@ -18,6 +18,8 @@ import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.model.CompanyDashboardStatsResponse
 import com.example.estagios.model.SampleData.candidaturas
 import com.example.estagios.model.StudentDashboardStatsResponse
+import androidx.compose.ui.res.stringResource
+import com.example.estagios.R
 import java.lang.System.console
 
 enum class TipoUtilizador {
@@ -92,42 +94,41 @@ fun HomeScreen(
 
     val estatisticas = when (tipoUtilizador) {
         TipoUtilizador.ALUNO -> listOf(
-            "Candidaturas ativas" to if (isLoadingStats) "..." else studentStats.activeApplications.toString(),
-            "Candidaturas aceites" to if (isLoadingStats) "..." else studentStats.acceptedApplications.toString(),
-            "Mensagens novas" to if (isLoadingStats) "..." else studentStats.newMessages.toString()
+            stringResource(R.string.stats_candidaturas_ativas) to if (isLoadingStats) "..." else studentStats.activeApplications.toString(),
+            stringResource(R.string.stats_candidaturas_aceites) to if (isLoadingStats) "..." else studentStats.acceptedApplications.toString(),
+            stringResource(R.string.stats_mensagens_novas) to if (isLoadingStats) "..." else studentStats.newMessages.toString()
         )
 
         TipoUtilizador.DOCENTE -> listOf(
-            "Ofertas totais" to "0",
-            "Candidaturas" to "0",
-            "Estágios a decorrer" to "0"
+            stringResource(R.string.stats_ofertas) to "0",
+            stringResource(R.string.stats_candidaturas_recebidas) to "0"
         )
 
         TipoUtilizador.EMPRESA -> listOf(
-            "Ofertas" to if (isLoadingStats) "..." else companyStats.offers.toString(),
-            "Candidaturas recebidas" to if (isLoadingStats) "..." else companyStats.receivedApplications.toString(),
-            "Candidaturas pendentes" to if (isLoadingStats) "..." else companyStats.pendingApplications.toString()
+            stringResource(R.string.stats_ofertas) to if (isLoadingStats) "..." else companyStats.offers.toString(),
+            stringResource(R.string.stats_candidaturas_recebidas) to if (isLoadingStats) "..." else companyStats.receivedApplications.toString(),
+            stringResource(R.string.stats_candidaturas_pendentes) to if (isLoadingStats) "..." else companyStats.pendingApplications.toString()
         )
     }
 
     val botoes = when (tipoUtilizador) {
         TipoUtilizador.ALUNO -> listOf(
-            "Ver Ofertas disponíveis" to onVerOfertas,
-            "As minhas candidaturas" to onMinhasCandidaturas,
-            "Mensagens" to onMensagens
+            stringResource(R.string.home_ver_ofertas) to onVerOfertas,
+            stringResource(R.string.home_minhas_candidaturas) to onMinhasCandidaturas,
+            stringResource(R.string.home_mensagens) to onMensagens
         )
 
         TipoUtilizador.DOCENTE -> listOf(
             "Ofertas de Estágio" to onOfertasEstagio,
             "Estágios Orientados" to onEstagiosOrientados,
-            "Mensagens" to onMensagens
+            stringResource(R.string.home_mensagens) to onMensagens
         )
 
         TipoUtilizador.EMPRESA -> listOf(
-            "Criar oferta" to onCriarOferta,
-            "Ver Candidaturas" to onVerCandidaturas,
-            "As minhas ofertas" to onMinhasOfertas,
-            "Mensagens" to onMensagens
+            stringResource(R.string.home_criar_oferta) to onCriarOferta,
+            stringResource(R.string.home_ver_candidaturas) to onVerCandidaturas,
+            stringResource(R.string.home_minhas_ofertas) to onMinhasOfertas,
+            stringResource(R.string.home_mensagens) to onMensagens
         )
     }
 
@@ -138,7 +139,7 @@ fun HomeScreen(
     ) {
         ProfileTopBar(
             nome = nomeUtilizador.uppercase(),
-            mostrarNotificacoes = true,
+            mostrarNotificacoes = false,
             onLogout = onLogout
         )
 

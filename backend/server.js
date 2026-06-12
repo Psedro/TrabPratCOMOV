@@ -1039,19 +1039,93 @@ app.post("/api/auth/register", async (req, res) => {
         const resultStudent = await db.collection("students").insertOne(studentData);
 
         console.log("STUDENT INSERIDO COM ID:", resultStudent.insertedId);
-      } catch (err) {
-        console.error("ERRO AO INSERIR STUDENT:", err);
+      } catch (error) {
+        console.error("ERRO /api/auth/register:", error);
+        console.error("MESSAGE:", error.message);
+        console.error("CODE:", error.code);
+        console.error("ERR INFO:", JSON.stringify(error.errInfo, null, 2));
+
+        res.status(500).json({
+          message: "Erro ao registar utilizador",
+          error: error.message,
+          code: error.code,
+          details: error.errInfo || null
+        });
       }
     }
 
     if (tipo === "teacher") {
-      await db.collection("teachers").insertOne({
-        userId: userId,
-        teacherNumber: professor.numeroProfessor,
-        department: professor.departamento
+  console.log("VOU INSERIR TEACHER");
+
+  try {
+    const departmentName = professor.departamento.trim();
+
+    let faculty = await db.collection("faculties").findOne({
+      name: departmentName
+    });
+
+    if (!faculty) {
+      console.log("FACULDADE NÃO EXISTE, VOU CRIAR:", departmentName);
+
+      const address = {
+        street: "Morada não definida",
+        buildingNumber: "S/N",
+        city: "Cidade não definida",
+        postalCode: "0000-000",
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      const addressResult = await db.collection("addresses").insertOne(address);
+
+      console.log("ADDRESS DA FACULDADE CRIADO:", addressResult.insertedId.toString());
+
+      const facultyResult = await db.collection("faculties").insertOne({
+        name: departmentName,
+        addressId: addressResult.insertedId,
+        createdAt: new Date(),
+        updatedAt: new Date()
       });
+
+      faculty = {
+        _id: facultyResult.insertedId,
+        name: departmentName,
+        addressId: addressResult.insertedId
+      };
+
+      console.log("FACULDADE CRIADA:", faculty._id.toString());
     }
 
+    const teacherData = {
+      userId: userId,
+      academicTitle: "Professor",
+      facultyId: faculty._id,
+
+      // Mantemos isto se o schema aceitar campos extra
+      teacherNumber: Number(professor.numeroProfessor),
+
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    console.log("DADOS A INSERIR EM TEACHERS:", teacherData);
+
+    const resultTeacher = await db.collection("teachers").insertOne(teacherData);
+
+    console.log("TEACHER INSERIDO COM ID:", resultTeacher.insertedId.toString());
+  } catch (err) {
+    console.error("ERRO AO INSERIR TEACHER:", err);
+    console.error("ERRO TEACHER MESSAGE:", err.message);
+    console.error("ERRO TEACHER CODE:", err.code);
+    console.error("ERRO TEACHER INFO:", JSON.stringify(err.errInfo, null, 2));
+
+    await db.collection("users").deleteOne({
+      _id: userId
+    });
+
+    throw err;
+  }
+}
     if (tipo === "company") {
       const company = {
         ownerUserId: userId,

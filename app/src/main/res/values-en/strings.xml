@@ -1,0 +1,50 @@
+<resources>
+    <string name="app_name">Internships</string>
+
+
+    <string name="logout">Logout</string>
+    <string name="language_english">English</string>
+    <string name="language_portuguese">Portuguese</string>
+
+    <string name="home_ver_ofertas">View available offers</string>
+    <string name="home_minhas_candidaturas">My applications</string>
+    <string name="home_mensagens">Messages</string>
+
+    <string name="home_criar_oferta">Create offer</string>
+    <string name="home_ver_candidaturas">View applications</string>
+    <string name="home_minhas_ofertas">My offers</string>
+
+    <string name="stats_candidaturas_ativas">Active applications</string>
+    <string name="stats_candidaturas_aceites">Accepted applications</string>
+    <string name="stats_mensagens_novas">New messages</string>
+
+    <string name="stats_ofertas">Offers</string>
+    <string name="stats_candidaturas_recebidas">Received applications</string>
+    <string name="stats_candidaturas_pendentes">Pending applications</string>
+
+    <string name="change_language">Change language</string>
+
+    <string name="login_title">Login</string>
+    <string name="login_email">Email</string>
+    <string name="login_password">Password</string>
+    <string name="login_button">Login</string>
+    <string name="login_or">OR</string>
+    <string name="login_no_account">Don\'t have an account?</string>
+    <string name="login_register">Sign up</string>
+
+    <string name="register_title">Create account</string>
+    <string name="register_select_user_type">Select user type</string>
+    <string name="register_account_data">Account details</string>
+    <string name="register_first_name">First name</string>
+    <string name="register_last_name">Last name</string>
+    <string name="register_username">Username</string>
+    <string name="register_email">Email</string>
+    <string name="register_password">Password</string>
+    <string name="register_confirm_password">Confirm password</string>
+    <string name="register_button">Create account</string>
+    <string name="register_have_account">I already have an account</string>
+
+    <string name="register_type_student">Student</string>
+    <string name="register_type_teacher">Teacher</string>
+    <string name="register_type_company">Company</string>
+</resources>
