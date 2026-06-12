@@ -23,6 +23,7 @@ import com.example.estagios.data.remote.ApplicationConversationResponse
 import com.example.estagios.data.remote.ApplicationMessageResponse
 import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.data.remote.SendApplicationMessageRequest
+import com.example.estagios.ui.common.ProfileTopBar
 import com.example.estagios.ui.theme.Azul
 import com.example.estagios.ui.theme.TextoSecundario
 import kotlinx.coroutines.launch
@@ -32,7 +33,8 @@ fun MensagensScreen(
     userId: String,
     nomeUtilizador: String,
     tipoUtilizador: TipoUtilizador,
-    onVoltar: () -> Unit
+    onVoltar: () -> Unit,
+    onLogout: () -> Unit
 ) {
     var conversas by remember { mutableStateOf<List<ApplicationConversationResponse>>(emptyList()) }
     var conversaSelecionada by remember { mutableStateOf<ApplicationConversationResponse?>(null) }
@@ -121,10 +123,13 @@ fun MensagensScreen(
             .fillMaxSize()
             .background(Color(0xFFF2F2F7))
     ) {
-        TopBarMensagens(
-            titulo = if (conversaSelecionada == null) "MENSAGENS" else conversaSelecionada?.offerTitle ?: "MENSAGENS",
-            subtitulo = if (conversaSelecionada == null) nomeUtilizador else obterNomeConversa(conversaSelecionada, tipoUtilizador),
-            inicialPerfil = obterIniciais(nomeUtilizador).take(1),
+        ProfileTopBar(
+            nome = if (conversaSelecionada == null) {
+                nomeUtilizador.uppercase()
+            } else {
+                obterNomeConversa(conversaSelecionada, tipoUtilizador).uppercase()
+            },
+            mostrarNotificacoes = false,
             onVoltar = {
                 if (conversaSelecionada != null) {
                     conversaSelecionada = null
@@ -133,7 +138,8 @@ fun MensagensScreen(
                 } else {
                     onVoltar()
                 }
-            }
+            },
+            onLogout = onLogout
         )
 
         if (conversaSelecionada == null) {

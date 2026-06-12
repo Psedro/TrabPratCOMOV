@@ -26,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.estagios.ui.theme.Azul
 import com.example.estagios.ui.theme.TextoSecundario
+import androidx.compose.ui.res.stringResource
+import com.example.estagios.R
+import com.example.estagios.ui.common.LanguageToggleButton
 
 @Composable
 fun LoginScreen(
@@ -37,14 +40,11 @@ fun LoginScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Ícone de idioma no canto superior direito
-        IconButton(
-            onClick = { },
+        LanguageToggleButton(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(16.dp)
-        ) {
-            Icon(Icons.Outlined.Language, contentDescription = "Idioma")
-        }
+        )
 
         Column(
             modifier = Modifier
@@ -54,7 +54,7 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Entrar",
+                text = stringResource(R.string.login_title),
                 fontSize = 36.sp,
                 fontWeight = FontWeight.ExtraBold,
                 modifier = Modifier.padding(bottom = 40.dp)
@@ -63,7 +63,7 @@ fun LoginScreen(
             // Campo Email
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "Email",
+                    stringResource(R.string.login_email),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(bottom = 6.dp)
@@ -90,7 +90,7 @@ fun LoginScreen(
             // Campo Palavra-Passe
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "Palavra-Passe",
+                    stringResource(R.string.login_password),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(bottom = 6.dp)
@@ -126,51 +126,23 @@ fun LoginScreen(
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Azul)
             ) {
-                Text("Entrar", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.login_button),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                "OU",
+                stringResource(R.string.login_or),
                 color = TextoSecundario,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            /*// Botão Google
-            OutlinedButton(
-                onClick = { },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDDDDDD))
-            ) {
-                Text("G", fontWeight = FontWeight.Bold, color = Color(0xFF4285F4), fontSize = 18.sp)
-                Spacer(modifier = Modifier.width(10.dp))
-                Text("Entrar com Google", fontWeight = FontWeight.SemiBold, color = Color.Black)
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Botão Facebook
-            OutlinedButton(
-                onClick = { },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDDDDDD))
-            ) {
-                Text("f", fontWeight = FontWeight.Bold, color = Color(0xFF1877F2), fontSize = 20.sp)
-                Spacer(modifier = Modifier.width(10.dp))
-                Text("Entrar com Facebook", fontWeight = FontWeight.SemiBold, color = Color.Black)
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))*/
 
             // Link de registo
             Row(
@@ -179,7 +151,7 @@ fun LoginScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Não tens conta? ",
+                    text = stringResource(R.string.login_no_account) + " ",
                     color = TextoSecundario,
                     fontSize = 14.sp
                 )
@@ -190,7 +162,7 @@ fun LoginScreen(
                     modifier = Modifier.height(32.dp)
                 ) {
                     Text(
-                        text = "Regista-te",
+                        text = stringResource(R.string.login_register),
                         color = Color(0xFF5B4FFF),
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp

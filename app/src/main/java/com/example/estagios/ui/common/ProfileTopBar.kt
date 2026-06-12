@@ -12,9 +12,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.estagios.R
+import com.example.estagios.utils.LanguageManager
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun ProfileTopBar(
@@ -24,6 +28,7 @@ fun ProfileTopBar(
     onLogout: () -> Unit = {}
 ) {
     var menuAberto by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Row(
         modifier = Modifier
@@ -36,20 +41,36 @@ fun ProfileTopBar(
         when {
             mostrarNotificacoes -> {
                 IconButton(onClick = { /* Notificações */ }) {
-                    Icon(Icons.Outlined.Notifications, contentDescription = "Notificações")
+                    Icon(
+                        Icons.Outlined.Notifications,
+                        contentDescription = "Notificações"
+                    )
                 }
             }
+
             onVoltar != null -> {
                 IconButton(onClick = onVoltar) {
-                    Text("‹", fontSize = 28.sp, fontWeight = FontWeight.Light)
+                    Text(
+                        text = "‹",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Light
+                    )
                 }
             }
-            else -> Spacer(modifier = Modifier.size(48.dp))
+
+            else -> {
+                Spacer(modifier = Modifier.size(48.dp))
+            }
         }
 
-        Text(nome, fontWeight = FontWeight.Bold, fontSize = 15.sp, letterSpacing = 0.5.sp)
+        Text(
+            text = nome,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            letterSpacing = 0.5.sp,
+            maxLines = 1
+        )
 
-        // Avatar com menu
         Box {
             Box(
                 modifier = Modifier
@@ -59,7 +80,11 @@ fun ProfileTopBar(
                     .clickable { menuAberto = true },
                 contentAlignment = Alignment.Center
             ) {
-                Text(nome.firstOrNull()?.uppercase() ?: "P", fontWeight = FontWeight.Bold, color = Color.Gray)
+                Text(
+                    text = nome.firstOrNull()?.uppercase() ?: "P",
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Gray
+                )
             }
 
             DropdownMenu(
@@ -67,7 +92,32 @@ fun ProfileTopBar(
                 onDismissRequest = { menuAberto = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text("Sair", color = Color.Red) },
+                    text = {
+                        Text(stringResource(R.string.language_english))
+                    },
+                    onClick = {
+                        menuAberto = false
+                        LanguageManager.mudarParaIngles(context)
+                    }
+                )
+
+                DropdownMenuItem(
+                    text = {
+                        Text(stringResource(R.string.language_portuguese))
+                    },
+                    onClick = {
+                        menuAberto = false
+                        LanguageManager.mudarParaPortugues(context)
+                    }
+                )
+
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = stringResource(R.string.logout),
+                            color = Color.Red
+                        )
+                    },
                     onClick = {
                         menuAberto = false
                         onLogout()
