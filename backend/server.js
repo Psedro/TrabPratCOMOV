@@ -1590,6 +1590,544 @@ app.patch("/applications/:id/status", async (req, res) => {
   }
 });
 
+app.get("/teachers", async (req, res) => {
+  try {
+    const teachers = await db.collection("users").aggregate([
+      {
+        $lookup: {
+          from: "roles",
+          localField: "roleId",
+          foreignField: "_id",
+          as: "role"
+        }
+      },
+      {
+        $unwind: "$role"
+      },
+      {
+        $match: {
+          "role.name": "teacher"
+        }
+      },
+      {
+        $lookup: {
+          from: "teachers",
+          localField: "_id",
+          foreignField: "userId",
+          as: "teacher"
+        }
+      },
+      {
+        $unwind: {
+          path: "$teacher",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "faculties",
+          localField: "teacher.facultyId",
+          foreignField: "_id",
+          as: "faculty"
+        }
+      },
+      {
+        $unwind: {
+          path: "$faculty",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: { $toString: "$_id" },
+          teacherId: {
+            $cond: [
+              { $ifNull: ["$teacher._id", false] },
+              { $toString: "$teacher._id" },
+              null
+            ]
+          },
+          name: {
+            $trim: {
+              input: {
+                $concat: [
+                  { $ifNull: ["$firstName", ""] },
+                  " ",
+                  { $ifNull: ["$lastName", ""] }
+                ]
+              }
+            }
+          },
+          email: "$email",
+          academicTitle: {
+            $ifNull: ["$teacher.academicTitle", "Professor"]
+          },
+          department: {
+            $ifNull: ["$faculty.name", "Departamento não definido"]
+          }
+        }
+      },
+      {
+        $sort: {
+          name: 1
+        }
+      }
+    ]).toArray();
+
+    res.json(teachers);
+  } catch (error) {
+    console.error("ERRO AO LISTAR DOCENTES:", error);
+
+    res.status(500).json({
+      message: "Erro ao listar docentes",
+      error: error.message
+    });
+  }
+});
+
+app.post("/supervision-requests", async (req, res) => {
+  try {
+    const { applicationId, studentUserId, teacherUserId } = req.body;
+
+    if (!applicationId || !ObjectId.isValid(applicationId)) {
+      return res.status(400).json({
+        message: "applicationId inválido"
+      });
+    }
+
+    if (!studentUserId || !ObjectId.isValid(studentUserId)) {
+      return res.status(400).json({
+        message: "studentUserId inválido"
+      });
+    }
+
+    if (!teacherUserId || !ObjectId.isValid(teacherUserId)) {
+      return res.status(400).json({
+        message: "teacherUserId inválido"
+      });
+    }
+
+    const applicationObjectId = new ObjectId(applicationId);
+    const studentUserObjectId = new ObjectId(studentUserId);
+    const teacherUserObjectId = new ObjectId(teacherUserId);
+
+    const application = await db.collection("applications").findOne({
+      _id: applicationObjectId
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        message: "Candidatura não encontrada"
+      });
+    }
+
+    if (!["accepted", "ongoing", "in_progress"].includes(application.status)) {
+      return res.status(400).json({
+        message: "Só é possível pedir orientador para candidaturas aceites ou em progresso"
+      });
+    }
+
+    const student = await db.collection("students").findOne({
+      userId: studentUserObjectId
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        message: "Aluno não encontrado"
+      });
+    }
+
+    if (student._id.toString() !== application.studentId.toString()) {
+      return res.status(403).json({
+        message: "Esta candidatura não pertence a este aluno"
+      });
+    }
+
+    const teacherUser = await db.collection("users").findOne({
+      _id: teacherUserObjectId
+    });
+
+    if (!teacherUser) {
+      return res.status(404).json({
+        message: "Docente não encontrado"
+      });
+    }
+
+    const teacherRole = await db.collection("roles").findOne({
+      _id: teacherUser.roleId
+    });
+
+    if (teacherRole?.name !== "teacher") {
+      return res.status(400).json({
+        message: "O utilizador escolhido não é docente"
+      });
+    }
+
+    const acceptedRequest = await db.collection("supervisionRequests").findOne({
+      applicationId: applicationObjectId,
+      studentUserId: studentUserObjectId,
+      status: "accepted"
+    });
+
+    if (acceptedRequest) {
+      return res.status(409).json({
+        message: "Esta candidatura já tem orientador aceite"
+      });
+    }
+
+    const existingPendingRequest = await db.collection("supervisionRequests").findOne({
+      applicationId: applicationObjectId,
+      studentUserId: studentUserObjectId,
+      teacherUserId: teacherUserObjectId,
+      status: "pending"
+    });
+
+    if (existingPendingRequest) {
+      return res.status(409).json({
+        message: "Já existe um pedido pendente para este docente"
+      });
+    }
+
+    const request = {
+      applicationId: applicationObjectId,
+      studentUserId: studentUserObjectId,
+      teacherUserId: teacherUserObjectId,
+      status: "pending",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await db.collection("supervisionRequests").insertOne(request);
+
+    res.status(201).json({
+      message: "Pedido de orientação criado com sucesso",
+      requestId: result.insertedId.toString(),
+      status: request.status
+    });
+  } catch (error) {
+    console.error("ERRO AO CRIAR PEDIDO DE ORIENTAÇÃO:", error);
+
+    res.status(500).json({
+      message: "Erro ao criar pedido de orientação",
+      error: error.message
+    });
+  }
+});
+
+app.get("/supervision-requests", async (req, res) => {
+  try {
+    const { teacherUserId, studentUserId } = req.query;
+
+    const match = {};
+
+    if (teacherUserId) {
+      if (!ObjectId.isValid(teacherUserId)) {
+        return res.status(400).json({
+          message: "teacherUserId inválido"
+        });
+      }
+
+      match.teacherUserId = new ObjectId(teacherUserId);
+    }
+
+    if (studentUserId) {
+      if (!ObjectId.isValid(studentUserId)) {
+        return res.status(400).json({
+          message: "studentUserId inválido"
+        });
+      }
+
+      match.studentUserId = new ObjectId(studentUserId);
+    }
+
+    if (!teacherUserId && !studentUserId) {
+      return res.status(400).json({
+        message: "É obrigatório indicar teacherUserId ou studentUserId"
+      });
+    }
+
+    const requests = await db.collection("supervisionRequests").aggregate([
+      {
+        $match: match
+      },
+      {
+        $lookup: {
+          from: "applications",
+          localField: "applicationId",
+          foreignField: "_id",
+          as: "application"
+        }
+      },
+      {
+        $unwind: {
+          path: "$application",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "internshipOffers",
+          localField: "application.internshipOfferId",
+          foreignField: "_id",
+          as: "offer"
+        }
+      },
+      {
+        $unwind: {
+          path: "$offer",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "studentUserId",
+          foreignField: "_id",
+          as: "studentUser"
+        }
+      },
+      {
+        $unwind: {
+          path: "$studentUser",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "teacherUserId",
+          foreignField: "_id",
+          as: "teacherUser"
+        }
+      },
+      {
+        $unwind: {
+          path: "$teacherUser",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: { $toString: "$_id" },
+          applicationId: { $toString: "$applicationId" },
+          studentUserId: { $toString: "$studentUserId" },
+          teacherUserId: { $toString: "$teacherUserId" },
+          status: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          offerTitle: {
+            $ifNull: ["$offer.name", "Oferta sem título"]
+          },
+          companyName: "$offer.companyName",
+          studentName: {
+            $trim: {
+              input: {
+                $concat: [
+                  { $ifNull: ["$studentUser.firstName", ""] },
+                  " ",
+                  { $ifNull: ["$studentUser.lastName", ""] }
+                ]
+              }
+            }
+          },
+          studentEmail: "$studentUser.email",
+          teacherName: {
+            $trim: {
+              input: {
+                $concat: [
+                  { $ifNull: ["$teacherUser.firstName", ""] },
+                  " ",
+                  { $ifNull: ["$teacherUser.lastName", ""] }
+                ]
+              }
+            }
+          },
+          teacherEmail: "$teacherUser.email"
+        }
+      },
+      {
+        $sort: {
+          createdAt: -1
+        }
+      }
+    ]).toArray();
+
+    res.json(requests);
+  } catch (error) {
+    console.error("ERRO AO LISTAR PEDIDOS DE ORIENTAÇÃO:", error);
+
+    res.status(500).json({
+      message: "Erro ao listar pedidos de orientação",
+      error: error.message
+    });
+  }
+});
+
+app.patch("/supervision-requests/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { teacherUserId, status } = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "requestId inválido"
+      });
+    }
+
+    if (!teacherUserId || !ObjectId.isValid(teacherUserId)) {
+      return res.status(400).json({
+        message: "teacherUserId inválido"
+      });
+    }
+
+    if (!["accepted", "rejected"].includes(status)) {
+      return res.status(400).json({
+        message: "Estado inválido"
+      });
+    }
+
+    const requestId = new ObjectId(id);
+    const teacherUserObjectId = new ObjectId(teacherUserId);
+
+    const request = await db.collection("supervisionRequests").findOne({
+      _id: requestId
+    });
+
+    if (!request) {
+      return res.status(404).json({
+        message: "Pedido de orientação não encontrado"
+      });
+    }
+
+    if (request.teacherUserId.toString() !== teacherUserObjectId.toString()) {
+      return res.status(403).json({
+        message: "Este pedido não pertence a este docente"
+      });
+    }
+
+    if (request.status !== "pending") {
+      return res.status(400).json({
+        message: "Este pedido já foi tratado"
+      });
+    }
+
+    await db.collection("supervisionRequests").updateOne(
+      {
+        _id: requestId
+      },
+      {
+        $set: {
+          status: status,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    if (status === "accepted") {
+      await db.collection("supervisionRequests").updateMany(
+        {
+          _id: {
+            $ne: requestId
+          },
+          applicationId: request.applicationId,
+          studentUserId: request.studentUserId,
+          status: "pending"
+        },
+        {
+          $set: {
+            status: "rejected",
+            updatedAt: new Date()
+          }
+        }
+      );
+
+      const existingMessage = await db.collection("messages").findOne({
+        applicationId: request.applicationId,
+        senderId: request.teacherUserId,
+        receiverId: request.studentUserId,
+        content: "Aceitei ser o teu orientador neste estágio."
+      });
+
+      if (!existingMessage) {
+        await db.collection("messages").insertOne({
+          content: "Aceitei ser o teu orientador neste estágio.",
+          sentAt: new Date(),
+          isRead: false,
+          senderId: request.teacherUserId,
+          receiverId: request.studentUserId,
+          applicationId: request.applicationId
+        });
+      }
+    }
+
+    res.json({
+      message: "Pedido de orientação atualizado com sucesso",
+      requestId: id,
+      status: status
+    });
+  } catch (error) {
+    console.error("ERRO AO ATUALIZAR PEDIDO DE ORIENTAÇÃO:", error);
+
+    res.status(500).json({
+      message: "Erro ao atualizar pedido de orientação",
+      error: error.message
+    });
+  }
+});
+
+async function obterUltimaMensagem(applicationId, userId, otherUserId) {
+  const lastMessages = await db.collection("messages")
+    .find({
+      applicationId: applicationId,
+      $or: [
+        {
+          senderId: userId,
+          receiverId: otherUserId
+        },
+        {
+          senderId: otherUserId,
+          receiverId: userId
+        }
+      ]
+    })
+    .sort({ sentAt: -1 })
+    .limit(1)
+    .toArray();
+
+  return lastMessages[0] || null;
+}
+
+async function obterDadosAplicacao(applicationId) {
+  const application = await db.collection("applications").findOne({
+    _id: applicationId
+  });
+
+  if (!application) {
+    return null;
+  }
+
+  const offer = await db.collection("internshipOffers").findOne({
+    _id: application.internshipOfferId
+  });
+
+  const student = await db.collection("students").findOne({
+    _id: application.studentId
+  });
+
+  const studentUser = student
+    ? await db.collection("users").findOne({
+        _id: student.userId
+      })
+    : null;
+
+  return {
+    application,
+    offer,
+    student,
+    studentUser
+  };
+}
+
 app.get("/messages/conversations", async (req, res) => {
   try {
     const { userId } = req.query;
@@ -1616,7 +2154,7 @@ app.get("/messages/conversations", async (req, res) => {
       _id: user.roleId
     });
 
-    let applicationMatch = null;
+    const conversations = [];
 
     if (role?.name === "student") {
       const student = await db.collection("students").findOne({
@@ -1627,9 +2165,96 @@ app.get("/messages/conversations", async (req, res) => {
         return res.json([]);
       }
 
-      applicationMatch = {
+      const applications = await db.collection("applications").find({
         studentId: student._id
-      };
+      }).sort({
+        appliedDate: -1
+      }).toArray();
+
+      for (const application of applications) {
+        const offer = await db.collection("internshipOffers").findOne({
+          _id: application.internshipOfferId
+        });
+
+        let company = null;
+
+        if (offer?.companyLocationId) {
+          const companyLocation = await db.collection("companyLocations").findOne({
+            _id: offer.companyLocationId
+          });
+
+          if (companyLocation) {
+            company = await db.collection("companies").findOne({
+              _id: companyLocation.companyId
+            });
+          }
+        }
+
+        if (!company && offer?.companyName) {
+          company = await db.collection("companies").findOne({
+            name: offer.companyName
+          });
+        }
+
+        if (company?.ownerUserId) {
+          const lastMessage = await obterUltimaMensagem(
+            application._id,
+            userObjectId,
+            company.ownerUserId
+          );
+
+          conversations.push({
+            applicationId: application._id.toString(),
+            offerTitle: offer?.name || "Oferta sem título",
+            companyName: offer?.companyName || null,
+            studentName: null,
+            studentEmail: null,
+            status: application.status || "pending",
+            lastMessage: lastMessage ? lastMessage.content : null,
+            lastMessageAt: lastMessage ? lastMessage.sentAt.toISOString() : null,
+            otherUserId: company.ownerUserId.toString(),
+            otherUserName: company.name || "Empresa",
+            conversationType: "company"
+          });
+        }
+      }
+
+      const acceptedSupervisions = await db.collection("supervisionRequests").find({
+        studentUserId: userObjectId,
+        status: "accepted"
+      }).toArray();
+
+      for (const supervision of acceptedSupervisions) {
+        const data = await obterDadosAplicacao(supervision.applicationId);
+
+        if (!data) continue;
+
+        const teacherUser = await db.collection("users").findOne({
+          _id: supervision.teacherUserId
+        });
+
+        const teacherName = `${teacherUser?.firstName || ""} ${teacherUser?.lastName || ""}`.trim();
+
+        const lastMessage = await obterUltimaMensagem(
+          supervision.applicationId,
+          userObjectId,
+          supervision.teacherUserId
+        );
+
+        conversations.push({
+          applicationId: supervision.applicationId.toString(),
+          offerTitle: data.offer?.name || "Oferta sem título",
+          companyName: data.offer?.companyName || null,
+          studentName: null,
+          studentEmail: null,
+          status: data.application.status || "pending",
+          lastMessage: lastMessage ? lastMessage.content : null,
+          lastMessageAt: lastMessage ? lastMessage.sentAt.toISOString() : null,
+          otherUserId: supervision.teacherUserId.toString(),
+          otherUserName: teacherName || teacherUser?.email || "Docente",
+          conversationType: "teacher"
+        });
+      }
     } else if (role?.name === "company") {
       const company = await db.collection("companies").findOne({
         ownerUserId: userObjectId
@@ -1680,7 +2305,7 @@ app.get("/messages/conversations", async (req, res) => {
         return res.json([]);
       }
 
-      applicationMatch = {
+      const applications = await db.collection("applications").find({
         $or: [
           {
             internshipOfferId: {
@@ -1693,117 +2318,78 @@ app.get("/messages/conversations", async (req, res) => {
             }
           }
         ]
-      };
-    } else {
-      return res.json([]);
-    }
+      }).sort({
+        appliedDate: -1
+      }).toArray();
 
-    const applications = await db.collection("applications").aggregate([
-      {
-        $match: applicationMatch
-      },
-      {
-        $lookup: {
-          from: "internshipOffers",
-          localField: "internshipOfferId",
-          foreignField: "_id",
-          as: "offer"
-        }
-      },
-      {
-        $unwind: {
-          path: "$offer",
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $lookup: {
-          from: "students",
-          localField: "studentId",
-          foreignField: "_id",
-          as: "student"
-        }
-      },
-      {
-        $unwind: {
-          path: "$student",
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "student.userId",
-          foreignField: "_id",
-          as: "studentUser"
-        }
-      },
-      {
-        $unwind: {
-          path: "$studentUser",
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $project: {
-          _id: { $toString: "$_id" },
-          status: 1,
-          appliedDate: 1,
-          offerTitle: {
-            $ifNull: ["$offer.name", "Oferta sem título"]
-          },
-          companyName: "$offer.companyName",
-          studentName: {
-            $trim: {
-              input: {
-                $concat: [
-                  { $ifNull: ["$studentUser.firstName", ""] },
-                  " ",
-                  { $ifNull: ["$studentUser.lastName", ""] }
-                ]
-              }
-            }
-          },
-          studentEmail: "$studentUser.email"
-        }
-      },
-      {
-        $sort: {
-          appliedDate: -1
-        }
+      for (const application of applications) {
+        const data = await obterDadosAplicacao(application._id);
+
+        if (!data?.studentUser) continue;
+
+        const studentName = `${data.studentUser.firstName || ""} ${data.studentUser.lastName || ""}`.trim();
+
+        const lastMessage = await obterUltimaMensagem(
+          application._id,
+          userObjectId,
+          data.studentUser._id
+        );
+
+        conversations.push({
+          applicationId: application._id.toString(),
+          offerTitle: data.offer?.name || "Oferta sem título",
+          companyName: data.offer?.companyName || null,
+          studentName: studentName || null,
+          studentEmail: data.studentUser.email || null,
+          status: application.status || "pending",
+          lastMessage: lastMessage ? lastMessage.content : null,
+          lastMessageAt: lastMessage ? lastMessage.sentAt.toISOString() : null,
+          otherUserId: data.studentUser._id.toString(),
+          otherUserName: studentName || data.studentUser.email || "Aluno",
+          conversationType: "company"
+        });
       }
-    ]).toArray();
+    } else if (role?.name === "teacher") {
+      const acceptedSupervisions = await db.collection("supervisionRequests").find({
+        teacherUserId: userObjectId,
+        status: "accepted"
+      }).toArray();
 
-    const conversations = [];
+      for (const supervision of acceptedSupervisions) {
+        const data = await obterDadosAplicacao(supervision.applicationId);
 
-    for (const application of applications) {
-      const applicationObjectId = new ObjectId(application._id);
+        if (!data?.studentUser) continue;
 
-      const lastMessages = await db.collection("messages")
-        .find({
-          applicationId: applicationObjectId,
-          $or: [
-            { senderId: userObjectId },
-            { receiverId: userObjectId }
-          ]
-        })
-        .sort({ sentAt: -1 })
-        .limit(1)
-        .toArray();
+        const studentName = `${data.studentUser.firstName || ""} ${data.studentUser.lastName || ""}`.trim();
 
-      const lastMessage = lastMessages[0] || null;
+        const lastMessage = await obterUltimaMensagem(
+          supervision.applicationId,
+          userObjectId,
+          supervision.studentUserId
+        );
 
-      conversations.push({
-        applicationId: application._id,
-        offerTitle: application.offerTitle,
-        companyName: application.companyName || null,
-        studentName: application.studentName || null,
-        studentEmail: application.studentEmail || null,
-        status: application.status || "pending",
-        lastMessage: lastMessage ? lastMessage.content : null,
-        lastMessageAt: lastMessage ? lastMessage.sentAt.toISOString() : null
-      });
+        conversations.push({
+          applicationId: supervision.applicationId.toString(),
+          offerTitle: data.offer?.name || "Oferta sem título",
+          companyName: data.offer?.companyName || null,
+          studentName: studentName || null,
+          studentEmail: data.studentUser.email || null,
+          status: data.application.status || "pending",
+          lastMessage: lastMessage ? lastMessage.content : null,
+          lastMessageAt: lastMessage ? lastMessage.sentAt.toISOString() : null,
+          otherUserId: supervision.studentUserId.toString(),
+          otherUserName: studentName || data.studentUser.email || "Aluno",
+          conversationType: "teacher"
+        });
+      }
     }
+
+    conversations.sort((a, b) => {
+      const dataA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const dataB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+
+      return dataB - dataA;
+    });
 
     res.json(conversations);
   } catch (error) {
@@ -1819,7 +2405,7 @@ app.get("/messages/conversations", async (req, res) => {
 app.get("/applications/:id/messages", async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
+    const { userId, otherUserId } = req.query;
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -1836,14 +2422,32 @@ app.get("/applications/:id/messages", async (req, res) => {
     const applicationId = new ObjectId(id);
     const userObjectId = new ObjectId(userId);
 
+    const filter = {
+      applicationId: applicationId
+    };
+
+    if (otherUserId && ObjectId.isValid(otherUserId)) {
+      const otherUserObjectId = new ObjectId(otherUserId);
+
+      filter.$or = [
+        {
+          senderId: userObjectId,
+          receiverId: otherUserObjectId
+        },
+        {
+          senderId: otherUserObjectId,
+          receiverId: userObjectId
+        }
+      ];
+    } else {
+      filter.$or = [
+        { senderId: userObjectId },
+        { receiverId: userObjectId }
+      ];
+    }
+
     const messages = await db.collection("messages")
-      .find({
-        applicationId: applicationId,
-        $or: [
-          { senderId: userObjectId },
-          { receiverId: userObjectId }
-        ]
-      })
+      .find(filter)
       .sort({ sentAt: 1 })
       .toArray();
 
@@ -1870,7 +2474,7 @@ app.get("/applications/:id/messages", async (req, res) => {
 app.post("/applications/:id/messages", async (req, res) => {
   try {
     const { id } = req.params;
-    const { senderUserId, content } = req.body;
+    const { senderUserId, receiverUserId, content } = req.body;
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -1917,9 +2521,38 @@ app.post("/applications/:id/messages", async (req, res) => {
       _id: senderUser.roleId
     });
 
-    let receiverUserId = null;
+    let receiverObjectId = null;
 
-    if (role?.name === "student") {
+    if (receiverUserId && ObjectId.isValid(receiverUserId)) {
+      receiverObjectId = new ObjectId(receiverUserId);
+
+      const supervision = await db.collection("supervisionRequests").findOne({
+        applicationId: applicationId,
+        status: "accepted",
+        $or: [
+          {
+            studentUserId: senderObjectId,
+            teacherUserId: receiverObjectId
+          },
+          {
+            studentUserId: receiverObjectId,
+            teacherUserId: senderObjectId
+          }
+        ]
+      });
+
+      if (!supervision) {
+        const otherUser = await db.collection("users").findOne({
+          _id: receiverObjectId
+        });
+
+        if (!otherUser) {
+          return res.status(404).json({
+            message: "Destinatário não encontrado"
+          });
+        }
+      }
+    } else if (role?.name === "student") {
       const student = await db.collection("students").findOne({
         userId: senderObjectId
       });
@@ -1966,7 +2599,7 @@ app.post("/applications/:id/messages", async (req, res) => {
         });
       }
 
-      receiverUserId = company.ownerUserId;
+      receiverObjectId = company.ownerUserId;
     } else if (role?.name === "company") {
       const student = await db.collection("students").findOne({
         _id: application.studentId
@@ -1978,10 +2611,10 @@ app.post("/applications/:id/messages", async (req, res) => {
         });
       }
 
-      receiverUserId = student.userId;
+      receiverObjectId = student.userId;
     } else {
       return res.status(403).json({
-        message: "Apenas alunos e empresas podem enviar mensagens"
+        message: "Destinatário da mensagem não definido"
       });
     }
 
@@ -1990,7 +2623,7 @@ app.post("/applications/:id/messages", async (req, res) => {
       sentAt: new Date(),
       isRead: false,
       senderId: senderObjectId,
-      receiverId: receiverUserId,
+      receiverId: receiverObjectId,
       applicationId: applicationId
     };
 
@@ -2000,7 +2633,7 @@ app.post("/applications/:id/messages", async (req, res) => {
       _id: result.insertedId.toString(),
       applicationId: applicationId.toString(),
       senderUserId: senderObjectId.toString(),
-      receiverUserId: receiverUserId.toString(),
+      receiverUserId: receiverObjectId.toString(),
       content: newMessage.content,
       createdAt: newMessage.sentAt.toISOString()
     });

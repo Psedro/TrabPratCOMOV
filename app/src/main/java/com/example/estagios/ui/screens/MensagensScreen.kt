@@ -23,10 +23,10 @@ import com.example.estagios.data.remote.ApplicationConversationResponse
 import com.example.estagios.data.remote.ApplicationMessageResponse
 import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.data.remote.SendApplicationMessageRequest
-import com.example.estagios.ui.common.ProfileTopBar
-import com.example.estagios.ui.theme.Azul
-import com.example.estagios.ui.theme.TextoSecundario
 import kotlinx.coroutines.launch
+
+private val AzulMensagens = Color(0xFF2B5CE6)
+private val TextoSecundarioMensagens = Color(0xFF777777)
 
 @Composable
 fun MensagensScreen(
@@ -75,7 +75,8 @@ fun MensagensScreen(
 
             mensagens = RetrofitClient.apiService.getApplicationMessages(
                 applicationId = conversa.applicationId,
-                userId = userId
+                userId = userId,
+                otherUserId = conversa.otherUserId
             )
 
             erro = null
@@ -105,7 +106,8 @@ fun MensagensScreen(
                     applicationId = conversa.applicationId,
                     request = SendApplicationMessageRequest(
                         senderUserId = userId,
-                        content = textoMensagem
+                        content = textoMensagem,
+                        receiverUserId = conversa.otherUserId
                     )
                 )
 
@@ -123,23 +125,28 @@ fun MensagensScreen(
             .fillMaxSize()
             .background(Color(0xFFF2F2F7))
     ) {
-        ProfileTopBar(
-            nome = if (conversaSelecionada == null) {
-                nomeUtilizador.uppercase()
+        TopBarMensagens(
+            titulo = if (conversaSelecionada == null) {
+                "MENSAGENS"
             } else {
-                obterNomeConversa(conversaSelecionada, tipoUtilizador).uppercase()
+                conversaSelecionada?.offerTitle ?: "MENSAGENS"
             },
-            mostrarNotificacoes = false,
+            subtitulo = if (conversaSelecionada == null) {
+                nomeUtilizador
+            } else {
+                obterNomeConversa(conversaSelecionada, tipoUtilizador)
+            },
+            inicialPerfil = obterIniciais(nomeUtilizador).take(1),
             onVoltar = {
                 if (conversaSelecionada != null) {
                     conversaSelecionada = null
                     mensagens = emptyList()
                     textoMensagem = ""
+                    erro = null
                 } else {
                     onVoltar()
                 }
-            },
-            onLogout = onLogout
+            }
         )
 
         if (conversaSelecionada == null) {
@@ -149,7 +156,7 @@ fun MensagensScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = Azul)
+                        CircularProgressIndicator(color = AzulMensagens)
                     }
                 }
 
@@ -173,7 +180,7 @@ fun MensagensScreen(
                     ) {
                         Text(
                             text = "Ainda não existem conversas.",
-                            color = TextoSecundario,
+                            color = TextoSecundarioMensagens,
                             fontSize = 14.sp
                         )
                     }
@@ -210,7 +217,20 @@ fun MensagensScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(color = Azul)
+                            CircularProgressIndicator(color = AzulMensagens)
+                        }
+                    }
+
+                    erro != null -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Erro: $erro",
+                                color = Color(0xFFB00020),
+                                fontSize = 14.sp
+                            )
                         }
                     }
 
@@ -221,7 +241,7 @@ fun MensagensScreen(
                         ) {
                             Text(
                                 text = "Ainda não existem mensagens.\nEscreve a primeira mensagem.",
-                                color = TextoSecundario,
+                                color = TextoSecundarioMensagens,
                                 fontSize = 14.sp
                             )
                         }
@@ -264,14 +284,14 @@ fun MensagensScreen(
                         placeholder = {
                             Text(
                                 text = "Escrever mensagem...",
-                                color = TextoSecundario,
+                                color = TextoSecundarioMensagens,
                                 fontSize = 14.sp
                             )
                         },
                         shape = RoundedCornerShape(24.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             unfocusedBorderColor = Color(0xFFEEEEEE),
-                            focusedBorderColor = Azul
+                            focusedBorderColor = AzulMensagens
                         ),
                         singleLine = true,
                         maxLines = 1
@@ -281,7 +301,13 @@ fun MensagensScreen(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(if (textoMensagem.isBlank()) Color(0xFFBBBBBB) else Azul),
+                            .background(
+                                if (textoMensagem.isBlank()) {
+                                    Color(0xFFBBBBBB)
+                                } else {
+                                    AzulMensagens
+                                }
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         IconButton(
@@ -316,7 +342,7 @@ fun TopBarMensagens(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onVoltar) {
-            Text("‹", fontSize = 28.sp, fontWeight = FontWeight.Light)
+            Text("‹", fontSize = 30.sp, fontWeight = FontWeight.Light)
         }
 
         Spacer(modifier = Modifier.width(4.dp))
@@ -333,7 +359,7 @@ fun TopBarMensagens(
             if (!subtitulo.isNullOrBlank()) {
                 Text(
                     text = subtitulo,
-                    color = TextoSecundario,
+                    color = TextoSecundarioMensagens,
                     fontSize = 12.sp,
                     maxLines = 1
                 )
@@ -386,7 +412,7 @@ fun ConversaCard(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(Azul),
+                    .background(AzulMensagens),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -410,7 +436,7 @@ fun ConversaCard(
 
                 Text(
                     text = conversa.offerTitle,
-                    color = TextoSecundario,
+                    color = TextoSecundarioMensagens,
                     fontSize = 12.sp,
                     maxLines = 1
                 )
@@ -419,7 +445,11 @@ fun ConversaCard(
 
                 Text(
                     text = conversa.lastMessage ?: "Sem mensagens ainda",
-                    color = if (conversa.lastMessage == null) TextoSecundario else Color.DarkGray,
+                    color = if (conversa.lastMessage == null) {
+                        TextoSecundarioMensagens
+                    } else {
+                        Color.DarkGray
+                    },
                     fontSize = 13.sp,
                     maxLines = 1
                 )
@@ -441,7 +471,17 @@ fun ConversaCard(
                     Text(
                         text = formatDateMensagem(it),
                         fontSize = 10.sp,
-                        color = TextoSecundario
+                        color = TextoSecundarioMensagens
+                    )
+                }
+
+                conversa.conversationType?.let {
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = if (it == "teacher") "Orientador" else "Empresa",
+                        fontSize = 10.sp,
+                        color = TextoSecundarioMensagens
                     )
                 }
             }
@@ -462,7 +502,7 @@ fun BubbleMensagemReal(
             modifier = Modifier
                 .widthIn(max = 260.dp)
                 .background(
-                    color = if (minhaMensagem) Azul else Color.White,
+                    color = if (minhaMensagem) AzulMensagens else Color.White,
                     shape = RoundedCornerShape(
                         topStart = 18.dp,
                         topEnd = 18.dp,
@@ -493,7 +533,7 @@ fun BubbleMensagemReal(
                         color = if (minhaMensagem) {
                             Color.White.copy(alpha = 0.7f)
                         } else {
-                            TextoSecundario
+                            TextoSecundarioMensagens
                         }
                     )
 
@@ -516,14 +556,32 @@ private fun obterNomeConversa(
 ): String {
     if (conversa == null) return ""
 
+    conversa.otherUserName?.let {
+        if (it.isNotBlank()) {
+            return it
+        }
+    }
+
     return when (tipoUtilizador) {
-        TipoUtilizador.ALUNO -> conversa.companyName ?: "Empresa"
+        TipoUtilizador.ALUNO -> {
+            if (conversa.conversationType == "teacher") {
+                "Docente"
+            } else {
+                conversa.companyName ?: "Empresa"
+            }
+        }
+
         TipoUtilizador.EMPRESA -> {
             conversa.studentName?.takeIf { it.isNotBlank() }
                 ?: conversa.studentEmail
                 ?: "Aluno"
         }
-        TipoUtilizador.DOCENTE -> conversa.companyName ?: "Conversa"
+
+        TipoUtilizador.DOCENTE -> {
+            conversa.studentName?.takeIf { it.isNotBlank() }
+                ?: conversa.studentEmail
+                ?: "Aluno"
+        }
     }
 }
 
