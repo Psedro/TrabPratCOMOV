@@ -3007,6 +3007,14 @@ app.delete("/applications/:id", async (req, res) => {
       ? await db.collection("documents").findOne({ _id: application.cvDocumentId })
       : null;
 
+    await db.collection("messages").deleteMany({
+      applicationId: applicationId
+    });
+
+    await db.collection("supervisionRequests").deleteMany({
+      applicationId: applicationId
+    });
+
     await db.collection("applications").deleteOne({
       _id: applicationId
     });
@@ -3019,88 +3027,6 @@ app.delete("/applications/:id", async (req, res) => {
       if (document.filePath) {
         const filePath = path.join(__dirname, document.filePath.replace(/^\//, ""));
         apagarFicheiro(filePath);
-app.get("/users/:id/profile", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({
-        message: "userId inválido"
-      });
-    }
-
-    const userId = new ObjectId(id);
-
-    const user = await db.collection("users").findOne({
-      _id: userId
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        message: "Utilizador não encontrado"
-      });
-    }
-
-    const role = await db.collection("roles").findOne({
-      _id: user.roleId
-    });
-
-    const tipo = role?.name || null;
-
-    let studentProfile = null;
-    let teacherProfile = null;
-    let companyProfile = null;
-
-    if (tipo === "student") {
-      const student = await db.collection("students").findOne({
-        userId: userId
-      });
-
-      if (student) {
-        studentProfile = {
-          studentId: student._id.toString(),
-          indexNumber: student.indexNumber ?? null,
-          studyYear: student.studyYear ?? null,
-          degreeLevel: student.degreeLevel ?? null
-        };
-      }
-    }
-
-    if (tipo === "teacher") {
-      const teacher = await db.collection("teachers").findOne({
-        userId: userId
-      });
-
-      let faculty = null;
-
-      if (teacher?.facultyId) {
-        faculty = await db.collection("faculties").findOne({
-          _id: teacher.facultyId
-        });
-      }
-
-      if (teacher) {
-        teacherProfile = {
-          teacherId: teacher._id.toString(),
-          academicTitle: teacher.academicTitle ?? null,
-          teacherNumber: teacher.teacherNumber ?? null,
-          department: faculty?.name ?? null
-        };
-      }
-    }
-
-    if (tipo === "company") {
-      const company = await db.collection("companies").findOne({
-        ownerUserId: userId
-      });
-
-      if (company) {
-        companyProfile = {
-          companyId: company._id.toString(),
-          name: company.name ?? null,
-          website: company.website ?? null,
-          description: company.description ?? null
-        };
       }
     }
 
@@ -3113,24 +3039,6 @@ app.get("/users/:id/profile", async (req, res) => {
 
     res.status(500).json({
       message: "Erro ao eliminar candidatura",
-      id: user._id.toString(),
-      firstName: user.firstName || "",
-      lastName: user.lastName || "",
-      nome: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-      username: user.username || "",
-      email: user.email || "",
-      status: user.status || "active",
-      roleId: user.roleId?.toString() || null,
-      tipo: tipo,
-      student: studentProfile,
-      teacher: teacherProfile,
-      company: companyProfile
-    });
-  } catch (error) {
-    console.error("ERRO AO OBTER PERFIL:", error);
-
-    res.status(500).json({
-      message: "Erro ao obter perfil",
       error: error.message
     });
   }
@@ -3220,6 +3128,143 @@ app.patch("/applications/:id/cv", upload.single("cv"), async (req, res) => {
       if (oldDocument.filePath) {
         const oldFilePath = path.join(__dirname, oldDocument.filePath.replace(/^\//, ""));
         apagarFicheiro(oldFilePath);
+      }
+    }
+
+    res.json({
+      message: "Candidatura atualizada com sucesso",
+      applicationId: id,
+      cvDocumentId: newDocumentId.toString(),
+      cvName: newDocument.fileName,
+      cvPath: newDocument.filePath
+    });
+  } catch (error) {
+    console.error("ERRO AO EDITAR CANDIDATURA:", error);
+
+    if (newDocumentId) {
+      await db.collection("documents").deleteOne({
+        _id: newDocumentId
+      });
+    }
+
+    apagarFicheiro(req.file?.path);
+
+    res.status(500).json({
+      message: "Erro ao editar candidatura",
+      error: error.message
+    });
+  }
+});
+
+app.get("/users/:id/profile", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const userId = new ObjectId(id);
+
+    const user = await db.collection("users").findOne({
+      _id: userId
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
+      });
+    }
+
+    const role = await db.collection("roles").findOne({
+      _id: user.roleId
+    });
+
+    const tipo = role?.name || null;
+
+    let studentProfile = null;
+    let teacherProfile = null;
+    let companyProfile = null;
+
+    if (tipo === "student") {
+      const student = await db.collection("students").findOne({
+        userId: userId
+      });
+
+      if (student) {
+        studentProfile = {
+          studentId: student._id.toString(),
+          indexNumber: student.indexNumber ?? null,
+          studyYear: student.studyYear ?? null,
+          degreeLevel: student.degreeLevel ?? null
+        };
+      }
+    }
+
+    if (tipo === "teacher") {
+      const teacher = await db.collection("teachers").findOne({
+        userId: userId
+      });
+
+      let faculty = null;
+
+      if (teacher?.facultyId) {
+        faculty = await db.collection("faculties").findOne({
+          _id: teacher.facultyId
+        });
+      }
+
+      if (teacher) {
+        teacherProfile = {
+          teacherId: teacher._id.toString(),
+          academicTitle: teacher.academicTitle ?? null,
+          teacherNumber: teacher.teacherNumber ?? null,
+          department: faculty?.name ?? null
+        };
+      }
+    }
+
+    if (tipo === "company") {
+      const company = await db.collection("companies").findOne({
+        ownerUserId: userId
+      });
+
+      if (company) {
+        companyProfile = {
+          companyId: company._id.toString(),
+          name: company.name ?? null,
+          website: company.website ?? null,
+          description: company.description ?? null
+        };
+      }
+    }
+
+    res.json({
+      id: user._id.toString(),
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
+      nome: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+      username: user.username || "",
+      email: user.email || "",
+      status: user.status || "active",
+      roleId: user.roleId?.toString() || null,
+      tipo: tipo,
+      student: studentProfile,
+      teacher: teacherProfile,
+      company: companyProfile
+    });
+  } catch (error) {
+    console.error("ERRO AO OBTER PERFIL:", error);
+
+    res.status(500).json({
+      message: "Erro ao obter perfil",
+      error: error.message
+    });
+  }
+});
+
 app.patch("/users/:id/profile", async (req, res) => {
   try {
     const { id } = req.params;
@@ -3469,25 +3514,6 @@ app.patch("/users/:id/profile", async (req, res) => {
     }
 
     res.json({
-      message: "Candidatura atualizada com sucesso",
-      applicationId: id,
-      cvDocumentId: newDocumentId.toString(),
-      cvName: newDocument.fileName,
-      cvPath: newDocument.filePath
-    });
-  } catch (error) {
-    console.error("ERRO AO EDITAR CANDIDATURA:", error);
-
-    if (newDocumentId) {
-      await db.collection("documents").deleteOne({
-        _id: newDocumentId
-      });
-    }
-
-    apagarFicheiro(req.file?.path);
-
-    res.status(500).json({
-      message: "Erro ao editar candidatura",
       message: "Perfil atualizado com sucesso"
     });
   } catch (error) {
