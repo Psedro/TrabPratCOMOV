@@ -5,3 +5,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 val LocalAbrirPerfil = staticCompositionLocalOf<() -> Unit> {
     {}
 }
+
+val LocalAbrirNotificacoes = staticCompositionLocalOf<() -> Unit> {
+    {}
+}
