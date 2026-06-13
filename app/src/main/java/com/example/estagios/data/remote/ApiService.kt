@@ -165,4 +165,24 @@ interface ApiService {
         @Path("id") userId: String,
         @Body request: UpdateUserProfileRequest
     ): UpdateUserProfileResponse
+
+    @GET("notifications")
+    suspend fun getNotifications(
+        @Query("userId") userId: String
+    ): List<NotificationResponse>
+
+    @GET("notifications/unread-count")
+    suspend fun getUnreadNotificationsCount(
+        @Query("userId") userId: String
+    ): NotificationCountResponse
+
+    @PATCH("notifications/{id}/read")
+    suspend fun markNotificationAsRead(
+        @Path("id") notificationId: String
+    ): NotificationActionResponse
+
+    @PATCH("notifications/read-all")
+    suspend fun markAllNotificationsAsRead(
+        @Body request: MarkAllNotificationsReadRequest
+    ): NotificationActionResponse
 }

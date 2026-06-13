@@ -16,11 +16,10 @@ import com.example.estagios.ui.theme.CinzaBotao
 import com.example.estagios.ui.theme.TextoSecundario
 import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.model.CompanyDashboardStatsResponse
-import com.example.estagios.model.SampleData.candidaturas
 import com.example.estagios.model.StudentDashboardStatsResponse
 import androidx.compose.ui.res.stringResource
 import com.example.estagios.R
-import java.lang.System.console
+
 
 enum class TipoUtilizador {
     ALUNO,
@@ -140,7 +139,7 @@ fun HomeScreen(
     ) {
         ProfileTopBar(
             nome = nomeUtilizador.uppercase(),
-            mostrarNotificacoes = false,
+            mostrarNotificacoes = true,
             onLogout = onLogout
         )
 

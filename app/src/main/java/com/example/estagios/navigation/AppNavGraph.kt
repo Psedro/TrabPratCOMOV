@@ -13,6 +13,7 @@ import com.example.estagios.ui.screens.*
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.CompositionLocalProvider
 import com.example.estagios.ui.common.LocalAbrirPerfil
+import com.example.estagios.ui.common.LocalAbrirNotificacoes
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 
@@ -38,6 +39,9 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     CompositionLocalProvider(
         LocalAbrirPerfil provides {
             navController.navigate(Screen.Perfil.route)
+        },
+        LocalAbrirNotificacoes provides {
+            navController.navigate(Screen.Notificacoes.route)
         }
     ) {
         NavHost(
@@ -275,6 +279,16 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(0)
                         }
+                    }
+                )
+            }
+
+            composable(Screen.Notificacoes.route) {
+                NotificationsScreen(
+                    userId = userId,
+                    nomeUtilizador = nomeUtilizador,
+                    onVoltar = {
+                        navController.popBackStack()
                     }
                 )
             }

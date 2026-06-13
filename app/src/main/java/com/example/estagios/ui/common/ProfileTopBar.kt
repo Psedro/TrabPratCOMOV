@@ -30,6 +30,7 @@ fun ProfileTopBar(
     var menuAberto by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val abrirPerfil = LocalAbrirPerfil.current
+    val abrirNotificacoes = LocalAbrirNotificacoes.current
 
     Row(
         modifier = Modifier
@@ -41,7 +42,7 @@ fun ProfileTopBar(
     ) {
         when {
             mostrarNotificacoes -> {
-                IconButton(onClick = { /* Notificações */ }) {
+                IconButton(onClick = abrirNotificacoes) {
                     Icon(
                         Icons.Outlined.Notifications,
                         contentDescription = "Notificações"

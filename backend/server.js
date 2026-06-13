@@ -505,6 +505,38 @@ app.post("/applications", upload.single("cv"), async (req, res) => {
     const result = await db.collection("applications").insertOne(application);
     console.log("CANDIDATURA CRIADA:", result.insertedId.toString());
 
+        let company = null;
+
+        if (offer.companyLocationId) {
+          const companyLocation = await db.collection("companyLocations").findOne({
+            _id: offer.companyLocationId
+          });
+
+          if (companyLocation) {
+            company = await db.collection("companies").findOne({
+              _id: companyLocation.companyId
+            });
+          }
+        }
+
+        if (!company && offer.companyName) {
+          company = await db.collection("companies").findOne({
+            name: offer.companyName
+          });
+        }
+
+        if (company?.ownerUserId) {
+          await criarNotificacao({
+            userId: company.ownerUserId,
+            title: "Nova candidatura",
+            message: `Recebeste uma nova candidatura para a oferta "${offer.name}".`,
+            type: "new_application",
+            relatedApplicationId: result.insertedId,
+            relatedOfferId: offer._id,
+            relatedUserId: userObjectId
+          });
+        }
+
     res.status(201).json({
       message: "Candidatura submetida com sucesso.",
       application: {
@@ -842,6 +874,65 @@ function obterLabelRole(tipo) {
   }
 }
 
+function normalizarObjectId(valor) {
+  if (!valor) return null;
+
+  if (valor instanceof ObjectId) {
+    return valor;
+  }
+
+  if (ObjectId.isValid(valor)) {
+    return new ObjectId(valor);
+  }
+
+  return null;
+}
+
+async function criarNotificacao({
+  userId,
+  title,
+  message,
+  type,
+  relatedApplicationId = null,
+  relatedOfferId = null,
+  relatedUserId = null
+}) {
+  const userObjectId = normalizarObjectId(userId);
+
+  if (!userObjectId) {
+    return null;
+  }
+
+  const notification = {
+    userId: userObjectId,
+    title,
+    message,
+    type,
+    isRead: false,
+    createdAt: new Date()
+  };
+
+  const applicationObjectId = normalizarObjectId(relatedApplicationId);
+  const offerObjectId = normalizarObjectId(relatedOfferId);
+  const relatedUserObjectId = normalizarObjectId(relatedUserId);
+
+  if (applicationObjectId) {
+    notification.relatedApplicationId = applicationObjectId;
+  }
+
+  if (offerObjectId) {
+    notification.relatedOfferId = offerObjectId;
+  }
+
+  if (relatedUserObjectId) {
+    notification.relatedUserId = relatedUserObjectId;
+  }
+
+  const result = await db.collection("notifications").insertOne(notification);
+
+  return result.insertedId;
+}
+
 app.get("/student-dashboard-stats", async (req, res) => {
   try {
     const { userId } = req.query;
@@ -885,7 +976,10 @@ app.get("/student-dashboard-stats", async (req, res) => {
     });
 
     // Por enquanto fica 0, se ainda não tiveres sistema de mensagens.
-    const newMessages = 0;
+        const newMessages = await db.collection("notifications").countDocuments({
+          userId: userObjectId,
+          isRead: false
+        });
 
     res.json({
       activeApplications,
@@ -1583,6 +1677,35 @@ app.patch("/applications/:id/status", async (req, res) => {
       }
     );
 
+        const student = await db.collection("students").findOne({
+          _id: application.studentId
+        });
+
+        if (student?.userId) {
+          let notificationTitle = "Estado da candidatura atualizado";
+          let notificationMessage = `O estado da tua candidatura à oferta "${offer.name}" foi atualizado.`;
+
+          if (status === "accepted") {
+            notificationTitle = "Candidatura aceite";
+            notificationMessage = `A tua candidatura à oferta "${offer.name}" foi aceite.`;
+          }
+
+          if (status === "rejected") {
+            notificationTitle = "Candidatura recusada";
+            notificationMessage = `A tua candidatura à oferta "${offer.name}" foi recusada.`;
+          }
+
+          await criarNotificacao({
+            userId: student.userId,
+            title: notificationTitle,
+            message: notificationMessage,
+            type: "application_status",
+            relatedApplicationId: applicationId,
+            relatedOfferId: offer._id,
+            relatedUserId: companyUserId
+          });
+        }
+
     res.json({
       message: "Estado da candidatura atualizado com sucesso",
       applicationId: id,
@@ -1806,6 +1929,20 @@ app.post("/supervision-requests", async (req, res) => {
     };
 
     const result = await db.collection("supervisionRequests").insertOne(request);
+
+    const offer = await db.collection("internshipOffers").findOne({
+      _id: application.internshipOfferId
+    });
+
+    await criarNotificacao({
+      userId: teacherUserObjectId,
+      title: "Novo pedido de orientação",
+      message: `Recebeste um pedido de orientação para a candidatura à oferta "${offer?.name || "Oferta sem título"}".`,
+      type: "supervision_request",
+      relatedApplicationId: applicationObjectId,
+      relatedOfferId: offer?._id || null,
+      relatedUserId: studentUserObjectId
+    });
 
     res.status(201).json({
       message: "Pedido de orientação criado com sucesso",
@@ -2067,6 +2204,31 @@ app.patch("/supervision-requests/:id/status", async (req, res) => {
         });
       }
     }
+
+        const applicationData = await obterDadosAplicacao(request.applicationId);
+
+        let notificationTitle = "Pedido de orientação atualizado";
+        let notificationMessage = "O teu pedido de orientação foi atualizado.";
+
+        if (status === "accepted") {
+          notificationTitle = "Pedido de orientação aceite";
+          notificationMessage = `O teu pedido de orientação para a oferta "${applicationData?.offer?.name || "Oferta sem título"}" foi aceite.`;
+        }
+
+        if (status === "rejected") {
+          notificationTitle = "Pedido de orientação recusado";
+          notificationMessage = `O teu pedido de orientação para a oferta "${applicationData?.offer?.name || "Oferta sem título"}" foi recusado.`;
+        }
+
+        await criarNotificacao({
+          userId: request.studentUserId,
+          title: notificationTitle,
+          message: notificationMessage,
+          type: "supervision_status",
+          relatedApplicationId: request.applicationId,
+          relatedOfferId: applicationData?.offer?._id || null,
+          relatedUserId: request.teacherUserId
+        });
 
     res.json({
       message: "Pedido de orientação atualizado com sucesso",
@@ -2636,6 +2798,18 @@ app.post("/applications/:id/messages", async (req, res) => {
     };
 
     const result = await db.collection("messages").insertOne(newMessage);
+
+    const messageData = await obterDadosAplicacao(applicationId);
+
+    await criarNotificacao({
+      userId: receiverObjectId,
+      title: "Nova mensagem",
+      message: `Recebeste uma nova mensagem relacionada com a candidatura à oferta "${messageData?.offer?.name || "Oferta sem título"}".`,
+      type: "message",
+      relatedApplicationId: applicationId,
+      relatedOfferId: messageData?.offer?._id || null,
+      relatedUserId: senderObjectId
+    });
 
     res.status(201).json({
       _id: result.insertedId.toString(),
@@ -3521,6 +3695,156 @@ app.patch("/users/:id/profile", async (req, res) => {
 
     res.status(500).json({
       message: "Erro ao atualizar perfil",
+      error: error.message
+    });
+  }
+});
+
+app.get("/notifications", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId || !ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const userObjectId = new ObjectId(userId);
+
+    const notifications = await db.collection("notifications")
+      .find({
+        userId: userObjectId
+      })
+      .sort({
+        createdAt: -1
+      })
+      .toArray();
+
+    res.json(
+      notifications.map(notification => ({
+        _id: notification._id.toString(),
+        userId: notification.userId?.toString() || userId,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        isRead: notification.isRead === true,
+        createdAt: notification.createdAt?.toISOString?.() || null,
+        relatedApplicationId: notification.relatedApplicationId?.toString?.() || null,
+        relatedOfferId: notification.relatedOfferId?.toString?.() || null,
+        relatedUserId: notification.relatedUserId?.toString?.() || null
+      }))
+    );
+  } catch (error) {
+    console.error("ERRO AO LISTAR NOTIFICAÇÕES:", error);
+
+    res.status(500).json({
+      message: "Erro ao listar notificações",
+      error: error.message
+    });
+  }
+});
+
+app.get("/notifications/unread-count", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId || !ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const unreadCount = await db.collection("notifications").countDocuments({
+      userId: new ObjectId(userId),
+      isRead: false
+    });
+
+    res.json({
+      unreadCount
+    });
+  } catch (error) {
+    console.error("ERRO AO CONTAR NOTIFICAÇÕES:", error);
+
+    res.status(500).json({
+      message: "Erro ao contar notificações",
+      error: error.message
+    });
+  }
+});
+
+app.patch("/notifications/:id/read", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "notificationId inválido"
+      });
+    }
+
+    const result = await db.collection("notifications").updateOne(
+      {
+        _id: new ObjectId(id)
+      },
+      {
+        $set: {
+          isRead: true,
+          readAt: new Date()
+        }
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({
+        message: "Notificação não encontrada"
+      });
+    }
+
+    res.json({
+      message: "Notificação marcada como lida"
+    });
+  } catch (error) {
+    console.error("ERRO AO MARCAR NOTIFICAÇÃO COMO LIDA:", error);
+
+    res.status(500).json({
+      message: "Erro ao marcar notificação como lida",
+      error: error.message
+    });
+  }
+});
+
+app.patch("/notifications/read-all", async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId || !ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    await db.collection("notifications").updateMany(
+      {
+        userId: new ObjectId(userId),
+        isRead: false
+      },
+      {
+        $set: {
+          isRead: true,
+          readAt: new Date()
+        }
+      }
+    );
+
+    res.json({
+      message: "Todas as notificações foram marcadas como lidas"
+    });
+  } catch (error) {
+    console.error("ERRO AO MARCAR TODAS AS NOTIFICAÇÕES:", error);
+
+    res.status(500).json({
+      message: "Erro ao marcar notificações como lidas",
       error: error.message
     });
   }
