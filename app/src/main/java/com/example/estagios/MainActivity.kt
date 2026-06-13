@@ -11,9 +11,10 @@ import androidx.compose.ui.Modifier
 import com.example.estagios.navigation.AppNavGraph
 import com.example.estagios.ui.theme.EstagiosTheme
 import com.example.estagios.utils.LanguageManager
-
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         LanguageManager.aplicarIdiomaGuardado(this)

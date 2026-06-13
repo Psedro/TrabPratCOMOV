@@ -46,6 +46,7 @@ import retrofit2.HttpException
 fun OfertasScreen(
     nomeUtilizador: String,
     userId: String,
+    tipoUtilizador: TipoUtilizador,
     minhasOfertas: Boolean = false,
     onVoltar: () -> Unit,
     onLogout: () -> Unit,
@@ -267,7 +268,7 @@ fun OfertasScreen(
             }
         }
     }
-    LaunchedEffect(userId, minhasOfertas) {
+    LaunchedEffect(userId, minhasOfertas, tipoUtilizador) {
         try {
             isLoading = true
 
@@ -285,7 +286,7 @@ fun OfertasScreen(
             if (response.isSuccessful) {
                 ofertas = response.body() ?: emptyList()
 
-                if (!minhasOfertas && userId.isNotBlank()) {
+                if (!minhasOfertas && tipoUtilizador == TipoUtilizador.ALUNO && userId.isNotBlank()) {
                     val candidaturasAluno = RetrofitClient.apiService.getStudentApplications(userId)
 
                     ofertasCandidatadas = candidaturasAluno
@@ -376,6 +377,7 @@ fun OfertasScreen(
                             OfertaCard(
                                 oferta = oferta,
                                 minhasOfertas = minhasOfertas,
+                                podeCandidatar = tipoUtilizador == TipoUtilizador.ALUNO,
                                 jaCandidatado = ofertasCandidatadas.contains(oferta._id),
                                 onVerDetalhes = { ofertaSelecionada = oferta },
                                 onCandidatar = { abrirPopupCandidatura(oferta) },
@@ -392,6 +394,7 @@ fun OfertasScreen(
             DetalheOfertaDialog(
                 oferta = oferta,
                 minhasOfertas = minhasOfertas,
+                podeCandidatar = tipoUtilizador == TipoUtilizador.ALUNO,
                 jaCandidatado = ofertasCandidatadas.contains(oferta._id),
                 onDismiss = { ofertaSelecionada = null },
                 onCandidatar = {
@@ -548,6 +551,7 @@ fun OfertasScreen(
 fun OfertaCard(
     oferta: InternshipOfferResponse,
     minhasOfertas: Boolean,
+    podeCandidatar: Boolean,
     jaCandidatado: Boolean,
     onVerDetalhes: () -> Unit,
     onCandidatar: () -> Unit,
@@ -653,9 +657,11 @@ fun OfertaCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                val mostrarBotaoCandidatar = podeCandidatar && !jaCandidatado
+
                 Button(
                     onClick = onVerDetalhes,
-                    modifier = if (!jaCandidatado) {
+                    modifier = if (mostrarBotaoCandidatar) {
                         Modifier.weight(1f).height(44.dp)
                     } else {
                         Modifier.fillMaxWidth().height(44.dp)
@@ -666,7 +672,7 @@ fun OfertaCard(
                     Text("Ver detalhes", fontSize = 13.sp)
                 }
 
-                if (!jaCandidatado) {
+                if (mostrarBotaoCandidatar) {
                     Button(
                         onClick = onCandidatar,
                         modifier = Modifier
@@ -706,6 +712,7 @@ fun InfoItem(icon: androidx.compose.ui.graphics.vector.ImageVector, texto: Strin
 fun DetalheOfertaDialog(
     oferta: InternshipOfferResponse,
     minhasOfertas: Boolean,
+    podeCandidatar: Boolean,
     jaCandidatado: Boolean,
     onDismiss: () -> Unit,
     onCandidatar: () -> Unit
@@ -799,7 +806,7 @@ fun DetalheOfertaDialog(
                     Text("Fechar", fontSize = 13.sp)
                 }
 
-                if (!minhasOfertas) {
+                if (!minhasOfertas && podeCandidatar) {
                     Button(
                         onClick = onCandidatar,
                         enabled = !jaCandidatado,
