@@ -227,3 +227,12 @@ data class UpdateInternshipOfferResponse(
     val message: String,
     val offer: InternshipOfferResponse
 )
+
+data class ApplicationActionResponse(
+    val message: String,
+    val deletedId: String? = null,
+    val applicationId: String? = null,
+    val cvDocumentId: String? = null,
+    val cvName: String? = null,
+    val cvPath: String? = null
+)

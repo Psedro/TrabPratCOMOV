@@ -31,6 +31,11 @@ import com.example.estagios.data.remote.UpdateApplicationStatusRequest
 import com.example.estagios.data.remote.UpdateSupervisionRequestStatusRequest
 import kotlinx.coroutines.launch
 import com.example.estagios.ui.common.ProfileTopBar
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.estagios.utils.toTextRequestBody
+import com.example.estagios.utils.uriToMultipart
+
 
 private val Azul = Color(0xFF2B5CE6)
 private val TextoEmpresa = Color(0xFF555555)
@@ -58,6 +63,14 @@ fun CandidaturasScreen(
 
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    var candidaturaParaEliminar by remember { mutableStateOf<StudentApplicationResponse?>(null) }
+    var candidaturaParaEditar by remember { mutableStateOf<StudentApplicationResponse?>(null) }
+    var cvEditarUri by remember { mutableStateOf<Uri?>(null) }
+    var aEliminarCandidatura by remember { mutableStateOf(false) }
+    var aEditarCandidatura by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
 
     LaunchedEffect(userId, tipoUtilizador, refreshKey) {
         try {
@@ -130,6 +143,19 @@ fun CandidaturasScreen(
                 (it.teacherEmail ?: "").contains(pesquisa, ignoreCase = true)
     }
 
+    val escolherCvEditarLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        cvEditarUri = uri
+
+        uri?.let {
+            context.contentResolver.takePersistableUriPermission(
+                it,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
+    }
+
     fun atualizarEstadoCandidatura(candidatura: StudentApplicationResponse, novoEstado: String) {
         scope.launch {
             try {
@@ -179,6 +205,75 @@ fun CandidaturasScreen(
                 snackbarHostState.showSnackbar(
                     "Erro ao enviar pedido de orientação"
                 )
+            }
+        }
+    }
+    fun eliminarCandidatura(candidatura: StudentApplicationResponse) {
+        scope.launch {
+            try {
+                aEliminarCandidatura = true
+
+                val response = RetrofitClient.apiService.deleteApplication(
+                    applicationId = candidatura._id,
+                    userId = userId
+                )
+
+                if (response.isSuccessful) {
+                    candidaturas = candidaturas.filter { it._id != candidatura._id }
+                    candidaturaParaEliminar = null
+                    candidaturaSelecionada = null
+
+                    snackbarHostState.showSnackbar("Candidatura eliminada com sucesso")
+                } else {
+                    val erroBackend = response.errorBody()?.string()
+                    snackbarHostState.showSnackbar(
+                        "Erro ${response.code()}: ${erroBackend ?: "Erro ao eliminar candidatura"}"
+                    )
+                }
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Erro: ${e.message}")
+            } finally {
+                aEliminarCandidatura = false
+            }
+        }
+    }
+
+    fun editarCandidatura(candidatura: StudentApplicationResponse) {
+        val uri = cvEditarUri
+
+        if (uri == null) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Seleciona um currículo primeiro")
+            }
+            return
+        }
+
+        scope.launch {
+            try {
+                aEditarCandidatura = true
+
+                val response = RetrofitClient.apiService.updateApplicationCv(
+                    applicationId = candidatura._id,
+                    userId = userId.toTextRequestBody(),
+                    cv = context.uriToMultipart(uri)
+                )
+
+                if (response.isSuccessful) {
+                    candidaturaParaEditar = null
+                    cvEditarUri = null
+                    refreshKey++
+
+                    snackbarHostState.showSnackbar("Candidatura atualizada com sucesso")
+                } else {
+                    val erroBackend = response.errorBody()?.string()
+                    snackbarHostState.showSnackbar(
+                        "Erro ${response.code()}: ${erroBackend ?: "Erro ao editar candidatura"}"
+                    )
+                }
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Erro: ${e.message}")
+            } finally {
+                aEditarCandidatura = false
             }
         }
     }
@@ -402,6 +497,13 @@ fun CandidaturasScreen(
                                 },
                                 onEscolherOrientador = {
                                     candidaturaParaOrientador = candidatura
+                                },
+                                onEditar = {
+                                    candidaturaParaEditar = candidatura
+                                    cvEditarUri = null
+                                },
+                                onEliminar = {
+                                    candidaturaParaEliminar = candidatura
                                 }
                             )
                         }
@@ -433,6 +535,118 @@ fun CandidaturasScreen(
                 },
                 onEscolher = { docente ->
                     pedirOrientador(candidatura, docente)
+                }
+            )
+        }
+        candidaturaParaEliminar?.let { candidatura ->
+            AlertDialog(
+                onDismissRequest = {
+                    if (!aEliminarCandidatura) {
+                        candidaturaParaEliminar = null
+                    }
+                },
+                title = {
+                    Text("Eliminar candidatura")
+                },
+                text = {
+                    Text("Tens a certeza que queres eliminar esta candidatura?")
+                },
+                confirmButton = {
+                    Button(
+                        enabled = !aEliminarCandidatura,
+                        onClick = {
+                            eliminarCandidatura(candidatura)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFB00020)
+                        )
+                    ) {
+                        Text(
+                            if (aEliminarCandidatura) {
+                                "A eliminar..."
+                            } else {
+                                "Eliminar"
+                            }
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !aEliminarCandidatura,
+                        onClick = {
+                            candidaturaParaEliminar = null
+                        }
+                    ) {
+                        Text("Cancelar")
+                    }
+                }
+            )
+        }
+
+        candidaturaParaEditar?.let { candidatura ->
+            AlertDialog(
+                onDismissRequest = {
+                    if (!aEditarCandidatura) {
+                        candidaturaParaEditar = null
+                        cvEditarUri = null
+                    }
+                },
+                title = {
+                    Text("Editar candidatura")
+                },
+                text = {
+                    Column {
+                        Text("Seleciona um novo currículo para esta candidatura.")
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                escolherCvEditarLauncher.launch(
+                                    arrayOf(
+                                        "application/pdf",
+                                        "application/msword",
+                                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                    )
+                                )
+                            }
+                        ) {
+                            Text(
+                                if (cvEditarUri == null) {
+                                    "Selecionar novo currículo"
+                                } else {
+                                    "Novo currículo selecionado"
+                                }
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        enabled = cvEditarUri != null && !aEditarCandidatura,
+                        onClick = {
+                            editarCandidatura(candidatura)
+                        }
+                    ) {
+                        Text(
+                            if (aEditarCandidatura) {
+                                "A guardar..."
+                            } else {
+                                "Guardar"
+                            }
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !aEditarCandidatura,
+                        onClick = {
+                            candidaturaParaEditar = null
+                            cvEditarUri = null
+                        }
+                    ) {
+                        Text("Cancelar")
+                    }
                 }
             )
         }
@@ -483,7 +697,9 @@ fun CandidaturaCard(
     onVerDetalhes: () -> Unit,
     onAceitar: () -> Unit,
     onRecusar: () -> Unit,
-    onEscolherOrientador: () -> Unit
+    onEscolherOrientador: () -> Unit,
+    onEditar: () -> Unit,
+    onEliminar: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -625,7 +841,36 @@ fun CandidaturaCard(
 
             Spacer(modifier = Modifier.height(8.dp))
         }
+        if (tipoUtilizador == TipoUtilizador.ALUNO && candidatura.status == "pending") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = onEditar,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Azul)
+                ) {
+                    Text("Editar", fontSize = 13.sp)
+                }
 
+                Button(
+                    onClick = onEliminar,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020))
+                ) {
+                    Text("Eliminar", fontSize = 13.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
         Button(
             onClick = onVerDetalhes,
             modifier = Modifier
