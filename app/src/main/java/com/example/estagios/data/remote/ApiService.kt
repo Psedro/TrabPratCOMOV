@@ -155,4 +155,14 @@ interface ApiService {
         @Part cv: MultipartBody.Part
     ): Response<ApplicationActionResponse>
 
+    @GET("users/{id}/profile")
+    suspend fun getUserProfile(
+        @Path("id") userId: String
+    ): UserProfileResponse
+
+    @PATCH("users/{id}/profile")
+    suspend fun updateUserProfile(
+        @Path("id") userId: String,
+        @Body request: UpdateUserProfileRequest
+    ): UpdateUserProfileResponse
 }
