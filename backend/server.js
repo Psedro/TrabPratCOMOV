@@ -2945,6 +2945,376 @@ app.patch("/internship-offers/:id", async (req, res) => {
   }
 });
 
+app.get("/users/:id/profile", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const userId = new ObjectId(id);
+
+    const user = await db.collection("users").findOne({
+      _id: userId
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
+      });
+    }
+
+    const role = await db.collection("roles").findOne({
+      _id: user.roleId
+    });
+
+    const tipo = role?.name || null;
+
+    let studentProfile = null;
+    let teacherProfile = null;
+    let companyProfile = null;
+
+    if (tipo === "student") {
+      const student = await db.collection("students").findOne({
+        userId: userId
+      });
+
+      if (student) {
+        studentProfile = {
+          studentId: student._id.toString(),
+          indexNumber: student.indexNumber ?? null,
+          studyYear: student.studyYear ?? null,
+          degreeLevel: student.degreeLevel ?? null
+        };
+      }
+    }
+
+    if (tipo === "teacher") {
+      const teacher = await db.collection("teachers").findOne({
+        userId: userId
+      });
+
+      let faculty = null;
+
+      if (teacher?.facultyId) {
+        faculty = await db.collection("faculties").findOne({
+          _id: teacher.facultyId
+        });
+      }
+
+      if (teacher) {
+        teacherProfile = {
+          teacherId: teacher._id.toString(),
+          academicTitle: teacher.academicTitle ?? null,
+          teacherNumber: teacher.teacherNumber ?? null,
+          department: faculty?.name ?? null
+        };
+      }
+    }
+
+    if (tipo === "company") {
+      const company = await db.collection("companies").findOne({
+        ownerUserId: userId
+      });
+
+      if (company) {
+        companyProfile = {
+          companyId: company._id.toString(),
+          name: company.name ?? null,
+          website: company.website ?? null,
+          description: company.description ?? null
+        };
+      }
+    }
+
+    res.json({
+      id: user._id.toString(),
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
+      nome: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+      username: user.username || "",
+      email: user.email || "",
+      status: user.status || "active",
+      roleId: user.roleId?.toString() || null,
+      tipo: tipo,
+      student: studentProfile,
+      teacher: teacherProfile,
+      company: companyProfile
+    });
+  } catch (error) {
+    console.error("ERRO AO OBTER PERFIL:", error);
+
+    res.status(500).json({
+      message: "Erro ao obter perfil",
+      error: error.message
+    });
+  }
+});
+
+app.patch("/users/:id/profile", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      firstName,
+      lastName,
+      username,
+      email,
+      indexNumber,
+      studyYear,
+      degreeLevel,
+      academicTitle,
+      teacherNumber,
+      department,
+      companyName,
+      website,
+      description
+    } = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const userId = new ObjectId(id);
+
+    const user = await db.collection("users").findOne({
+      _id: userId
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
+      });
+    }
+
+    const role = await db.collection("roles").findOne({
+      _id: user.roleId
+    });
+
+    const tipo = role?.name || null;
+
+    const userUpdate = {
+      updatedAt: new Date()
+    };
+
+    if (typeof username === "string" && username.trim() !== "") {
+      const usernameNormalizado = username.trim();
+
+      const existingUsername = await db.collection("users").findOne({
+        username: usernameNormalizado,
+        _id: {
+          $ne: userId
+        }
+      });
+
+      if (existingUsername) {
+        return res.status(409).json({
+          message: "Username já está em utilização"
+        });
+      }
+
+      userUpdate.username = usernameNormalizado;
+    }
+
+    if (typeof email === "string" && email.trim() !== "") {
+      const emailNormalizado = email.trim().toLowerCase();
+
+      const existingEmail = await db.collection("users").findOne({
+        email: emailNormalizado,
+        _id: {
+          $ne: userId
+        }
+      });
+
+      if (existingEmail) {
+        return res.status(409).json({
+          message: "Email já está em utilização"
+        });
+      }
+
+      userUpdate.email = emailNormalizado;
+    }
+
+    if (tipo === "company") {
+      if (typeof companyName === "string" && companyName.trim() !== "") {
+        userUpdate.firstName = companyName.trim();
+        userUpdate.lastName = "";
+      }
+    } else {
+      if (typeof firstName === "string") {
+        userUpdate.firstName = firstName.trim();
+      }
+
+      if (typeof lastName === "string") {
+        userUpdate.lastName = lastName.trim();
+      }
+    }
+
+    await db.collection("users").updateOne(
+      {
+        _id: userId
+      },
+      {
+        $set: userUpdate
+      }
+    );
+
+    if (tipo === "student") {
+      const studentUpdate = {
+        updatedAt: new Date()
+      };
+
+      if (indexNumber !== undefined && indexNumber !== null && indexNumber !== "") {
+        studentUpdate.indexNumber = Number(indexNumber);
+      }
+
+      if (studyYear !== undefined && studyYear !== null && studyYear !== "") {
+        studentUpdate.studyYear = Number(studyYear);
+      }
+
+      if (typeof degreeLevel === "string") {
+        studentUpdate.degreeLevel = degreeLevel.trim();
+      }
+
+      await db.collection("students").updateOne(
+        {
+          userId: userId
+        },
+        {
+          $set: studentUpdate
+        }
+      );
+    }
+
+    if (tipo === "teacher") {
+      const teacherUpdate = {
+        updatedAt: new Date()
+      };
+
+      if (typeof academicTitle === "string") {
+        teacherUpdate.academicTitle = academicTitle.trim();
+      }
+
+      if (teacherNumber !== undefined && teacherNumber !== null && teacherNumber !== "") {
+        teacherUpdate.teacherNumber = Number(teacherNumber);
+      }
+
+      if (typeof department === "string" && department.trim() !== "") {
+        const departmentName = department.trim();
+
+        let faculty = await db.collection("faculties").findOne({
+          name: departmentName
+        });
+
+        if (!faculty) {
+          const address = {
+            street: "Morada não definida",
+            buildingNumber: "S/N",
+            city: "Cidade não definida",
+            postalCode: "0000-000",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+
+          const addressResult = await db.collection("addresses").insertOne(address);
+
+          const facultyResult = await db.collection("faculties").insertOne({
+            name: departmentName,
+            addressId: addressResult.insertedId,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+
+          faculty = {
+            _id: facultyResult.insertedId,
+            name: departmentName,
+            addressId: addressResult.insertedId
+          };
+        }
+
+        teacherUpdate.facultyId = faculty._id;
+      }
+
+      await db.collection("teachers").updateOne(
+        {
+          userId: userId
+        },
+        {
+          $set: teacherUpdate
+        }
+      );
+    }
+
+    if (tipo === "company") {
+      const companyUpdate = {
+        updatedAt: new Date()
+      };
+
+      if (typeof companyName === "string" && companyName.trim() !== "") {
+        companyUpdate.name = companyName.trim();
+      }
+
+      if (typeof website === "string") {
+        companyUpdate.website = website.trim();
+      }
+
+      if (typeof description === "string") {
+        companyUpdate.description = description.trim();
+      }
+
+      const company = await db.collection("companies").findOne({
+        ownerUserId: userId
+      });
+
+      if (company) {
+        await db.collection("companies").updateOne(
+          {
+            _id: company._id
+          },
+          {
+            $set: companyUpdate
+          }
+        );
+
+        if (companyUpdate.name) {
+          await db.collection("companyLocations").updateMany(
+            {
+              $or: [
+                { companyId: company._id },
+                { companyId: company._id.toString() },
+                { company_id: company._id },
+                { company_id: company._id.toString() }
+              ]
+            },
+            {
+              $set: {
+                name: companyUpdate.name,
+                updatedAt: new Date()
+              }
+            }
+          );
+        }
+      }
+    }
+
+    res.json({
+      message: "Perfil atualizado com sucesso"
+    });
+  } catch (error) {
+    console.error("ERRO AO ATUALIZAR PERFIL:", error);
+
+    res.status(500).json({
+      message: "Erro ao atualizar perfil",
+      error: error.message
+    });
+  }
+});
+
 connectToMongo().then(() => {
   app.listen(PORT, () => {
     console.log(`Servidor a correr em http://localhost:${PORT}`);

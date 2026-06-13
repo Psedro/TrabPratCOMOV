@@ -11,6 +11,8 @@ import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.model.LoginRequest
 import com.example.estagios.ui.screens.*
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.CompositionLocalProvider
+import com.example.estagios.ui.common.LocalAbrirPerfil
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 
@@ -33,240 +35,261 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         mutableStateOf<TipoUtilizador?>(null)
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = Screen.Login.route
+    CompositionLocalProvider(
+        LocalAbrirPerfil provides {
+            navController.navigate(Screen.Perfil.route)
+        }
     ) {
-        composable(Screen.Login.route) {
-            LoginScreen(
-                onLoginSuccess = { email, password ->
-                    scope.launch {
-                        try {
-                            val response = RetrofitClient.apiService.login(
-                                LoginRequest(
-                                    email = email,
-                                    password = password
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Login.route
+        ) {
+            composable(Screen.Login.route) {
+                LoginScreen(
+                    onLoginSuccess = { email, password ->
+                        scope.launch {
+                            try {
+                                val response = RetrofitClient.apiService.login(
+                                    LoginRequest(
+                                        email = email,
+                                        password = password
+                                    )
                                 )
-                            )
 
-                            if (response.isSuccessful) {
-                                val user = response.body()?.user
+                                if (response.isSuccessful) {
+                                    val user = response.body()?.user
 
-                                nomeUtilizador = user?.nome ?: "UTILIZADOR"
-                                userId = user?.id ?: ""
+                                    nomeUtilizador = user?.nome ?: "UTILIZADOR"
+                                    userId = user?.id ?: ""
 
-                                tipoUtilizador = when (user?.tipo) {
-                                    "student" -> TipoUtilizador.ALUNO
-                                    "teacher" -> TipoUtilizador.DOCENTE
-                                    "company" -> TipoUtilizador.EMPRESA
-                                    else -> TipoUtilizador.ALUNO
-                                }
-
-                                Toast.makeText(
-                                    context,
-                                    "Login efetuado com sucesso!",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-
-                                navController.navigate(Screen.Home.route) {
-                                    popUpTo(Screen.Login.route) {
-                                        inclusive = true
+                                    tipoUtilizador = when (user?.tipo) {
+                                        "student" -> TipoUtilizador.ALUNO
+                                        "teacher" -> TipoUtilizador.DOCENTE
+                                        "company" -> TipoUtilizador.EMPRESA
+                                        else -> TipoUtilizador.ALUNO
                                     }
+
+                                    Toast.makeText(
+                                        context,
+                                        "Login efetuado com sucesso!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+
+                                    navController.navigate(Screen.Home.route) {
+                                        popUpTo(Screen.Login.route) {
+                                            inclusive = true
+                                        }
+                                    }
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Email ou palavra-passe inválidos.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
-                            } else {
+                            } catch (e: Exception) {
                                 Toast.makeText(
                                     context,
-                                    "Email ou palavra-passe inválidos.",
+                                    "Erro de ligação ao servidor.",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
-                        } catch (e: Exception) {
-                            Toast.makeText(
-                                context,
-                                "Erro de ligação ao servidor.",
-                                Toast.LENGTH_SHORT
-                            ).show()
                         }
+                    },
+                    onRegistar = {
+                        navController.navigate(Screen.Registo.route)
                     }
-                },
-                onRegistar = {
-                    navController.navigate(Screen.Registo.route)
-                }
-            )
-        }
+                )
+            }
 
-        composable(Screen.Registo.route) {
-            RegistoScreen(
-                onRegistar = { pedidoRegisto ->
-                    scope.launch {
-                        try {
-                            val response = RetrofitClient.apiService.register(pedidoRegisto)
 
-                            if (response.isSuccessful) {
+            composable(Screen.Registo.route) {
+                RegistoScreen(
+                    onRegistar = { pedidoRegisto ->
+                        scope.launch {
+                            try {
+                                val response = RetrofitClient.apiService.register(pedidoRegisto)
+
+                                if (response.isSuccessful) {
+                                    Toast.makeText(
+                                        context,
+                                        "Registo criado com sucesso!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+
+                                    navController.popBackStack()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Erro no registo. Verifica os dados.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            } catch (e: Exception) {
                                 Toast.makeText(
                                     context,
-                                    "Registo criado com sucesso!",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-
-                                navController.popBackStack()
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "Erro no registo. Verifica os dados.",
+                                    "Erro de ligação ao servidor.",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
-                        } catch (e: Exception) {
-                            Toast.makeText(
-                                context,
-                                "Erro de ligação ao servidor.",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                        }
+                    },
+                    onVoltarLogin = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable(Screen.Home.route) {
+                HomeScreen(
+                    userId = userId,
+                    nomeUtilizador = nomeUtilizador,
+                    tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
+
+                    onVerOfertas = {
+                        navController.navigate(Screen.Ofertas.route)
+                    },
+                    onMinhasCandidaturas = {
+                        navController.navigate(Screen.Candidaturas.route)
+                    },
+
+                    onOfertasEstagio = {
+                        navController.navigate(Screen.Ofertas.route)
+                    },
+                    onEstagiosOrientados = {
+                        navController.navigate(Screen.Candidaturas.route)
+                    },
+
+                    onCriarOferta = {
+                        navController.navigate(Screen.CriarOferta.route)
+                    },
+                    onVerCandidaturas = {
+                        navController.navigate(Screen.Candidaturas.route)
+                    },
+                    onMinhasOfertas = {
+                        navController.navigate(Screen.MinhasOfertas.route)
+                    },
+
+                    onMensagens = {
+                        navController.navigate(Screen.Mensagens.route)
+                    },
+                    onLogout = {
+                        nomeUtilizador = ""
+                        tipoUtilizador = null
+                        userId = ""
+
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0)
                         }
                     }
-                },
-                onVoltarLogin = {
-                    navController.popBackStack()
-                }
-            )
-        }
+                )
+            }
 
-        composable(Screen.Home.route) {
-            HomeScreen(
-                userId = userId,
-                nomeUtilizador = nomeUtilizador,
-                tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
+            composable(Screen.Ofertas.route) {
+                OfertasScreen(
+                    nomeUtilizador = nomeUtilizador.ifBlank { "ALUNO" },
+                    userId = userId,
+                    minhasOfertas = false,
+                    onVoltar = {
+                        navController.popBackStack()
+                    },
+                    onLogout = {
+                        nomeUtilizador = ""
+                        userId = ""
+                        tipoUtilizador = null
 
-                onVerOfertas = {
-                    navController.navigate(Screen.Ofertas.route)
-                },
-                onMinhasCandidaturas = {
-                    navController.navigate(Screen.Candidaturas.route)
-                },
-
-                onOfertasEstagio = {
-                    navController.navigate(Screen.Ofertas.route)
-                },
-                onEstagiosOrientados = {
-                    navController.navigate(Screen.Candidaturas.route)
-                },
-
-                onCriarOferta = {
-                    navController.navigate(Screen.CriarOferta.route)
-                },
-                onVerCandidaturas = {
-                    navController.navigate(Screen.Candidaturas.route)
-                },
-                onMinhasOfertas = {
-                    navController.navigate(Screen.MinhasOfertas.route)
-                },
-
-                onMensagens = {
-                    navController.navigate(Screen.Mensagens.route)
-                },
-                onLogout = {
-                    nomeUtilizador = ""
-                    tipoUtilizador = null
-                    userId = ""
-
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0)
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0)
+                        }
                     }
-                }
-            )
-        }
+                )
+            }
+            composable(Screen.MinhasOfertas.route) {
+                OfertasScreen(
+                    nomeUtilizador = nomeUtilizador.ifBlank { "EMPRESA" },
+                    userId = userId,
+                    minhasOfertas = true,
+                    onVoltar = {
+                        navController.popBackStack()
+                    },
+                    onLogout = {
+                        nomeUtilizador = ""
+                        userId = ""
+                        tipoUtilizador = null
 
-        composable(Screen.Ofertas.route) {
-            OfertasScreen(
-                nomeUtilizador = nomeUtilizador.ifBlank { "ALUNO" },
-                userId = userId,
-                minhasOfertas = false,
-                onVoltar = {
-                    navController.popBackStack()
-                },
-                onLogout = {
-                    nomeUtilizador = ""
-                    userId = ""
-                    tipoUtilizador = null
-
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0)
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0)
+                        }
                     }
-                }
-            )
-        }
-        composable(Screen.MinhasOfertas.route) {
-            OfertasScreen(
-                nomeUtilizador = nomeUtilizador.ifBlank { "EMPRESA" },
-                userId = userId,
-                minhasOfertas = true,
-                onVoltar = {
-                    navController.popBackStack()
-                },
-                onLogout = {
-                    nomeUtilizador = ""
-                    userId = ""
-                    tipoUtilizador = null
+                )
+            }
+            composable(Screen.CriarOferta.route) {
+                CriarOfertaScreen(
+                    userId = userId,
+                    nomeUtilizador = nomeUtilizador,
+                    onVoltar = { navController.popBackStack() },
+                    onLogout = {
+                        nomeUtilizador = ""
+                        tipoUtilizador = null
 
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0)
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0)
+                        }
                     }
-                }
-            )
-        }
-        composable(Screen.CriarOferta.route) {
-            CriarOfertaScreen(
-                userId = userId,
-                nomeUtilizador = nomeUtilizador,
-                onVoltar = { navController.popBackStack() },
-                onLogout = {
-                    nomeUtilizador = ""
-                    tipoUtilizador = null
+                )
+            }
 
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0)
+            composable(Screen.Candidaturas.route) {
+                CandidaturasScreen(
+                    userId = userId,
+                    nomeUtilizador = nomeUtilizador,
+                    tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
+                    onVoltar = {
+                        navController.popBackStack()
+                    },
+                    onLogout = {
+                        nomeUtilizador = ""
+                        userId = ""
+                        tipoUtilizador = null
+
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
-                }
-            )
-        }
+                )
+            }
 
-        composable(Screen.Candidaturas.route) {
-            CandidaturasScreen(
-                userId = userId,
-                nomeUtilizador = nomeUtilizador,
-                tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
-                onVoltar = {
-                    navController.popBackStack()
-                },
-                onLogout = {
-                    nomeUtilizador = ""
-                    userId = ""
-                    tipoUtilizador = null
+            composable(Screen.Mensagens.route) {
+                MensagensScreen(
+                    userId = userId,
+                    nomeUtilizador = nomeUtilizador,
+                    tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
+                    onVoltar = { navController.popBackStack() },
+                    onLogout = {
+                        nomeUtilizador = ""
+                        userId = ""
+                        tipoUtilizador = null
 
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0)
+                        }
                     }
-                }
-            )
-        }
+                )
+            }
 
-        composable(Screen.Mensagens.route) {
-            MensagensScreen(
-                userId = userId,
-                nomeUtilizador = nomeUtilizador,
-                tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
-                onVoltar = { navController.popBackStack() },
-                onLogout = {
-                    nomeUtilizador = ""
-                    userId = ""
-                    tipoUtilizador = null
-
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0)
+            composable(Screen.Perfil.route) {
+                ProfileScreen(
+                    userId = userId,
+                    nomeUtilizador = nomeUtilizador,
+                    tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
+                    onVoltar = {
+                        navController.popBackStack()
+                    },
+                    onPerfilAtualizado = { novoNome ->
+                        nomeUtilizador = novoNome
                     }
-                }
-            )
+                )
+            }
         }
     }
 }
