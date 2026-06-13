@@ -1,5 +1,6 @@
 package com.example.estagios.data.remote
 
+import com.example.estagios.model.ApplicationActionResponse
 import com.example.estagios.model.CandidatarOfertaResponse
 import com.example.estagios.model.CompanyDashboardStatsResponse
 import com.example.estagios.model.LoginRequest
@@ -24,7 +25,6 @@ import retrofit2.http.Multipart
 import retrofit2.http.Part
 import retrofit2.http.Query
 import retrofit2.http.DELETE
-
 interface ApiService {
 
     @GET("health")
@@ -140,4 +140,19 @@ interface ApiService {
         @Path("id") offerId: String,
         @Body request: UpdateInternshipOfferRequest
     ): Response<UpdateInternshipOfferResponse>
+
+    @DELETE("applications/{id}")
+    suspend fun deleteApplication(
+        @Path("id") applicationId: String,
+        @Query("userId") userId: String
+    ): Response<ApplicationActionResponse>
+
+    @Multipart
+    @PATCH("applications/{id}/cv")
+    suspend fun updateApplicationCv(
+        @Path("id") applicationId: String,
+        @Part("userId") userId: RequestBody,
+        @Part cv: MultipartBody.Part
+    ): Response<ApplicationActionResponse>
+
 }

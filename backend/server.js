@@ -2945,6 +2945,209 @@ app.patch("/internship-offers/:id", async (req, res) => {
   }
 });
 
+app.delete("/applications/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "applicationId inválido" });
+    }
+
+    if (!userId || !ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "userId inválido" });
+    }
+
+    const applicationId = new ObjectId(id);
+    const userObjectId = new ObjectId(userId);
+
+    const user = await db.collection("users").findOne({ _id: userObjectId });
+
+    if (!user) {
+      return res.status(404).json({ message: "Utilizador não encontrado" });
+    }
+
+    const role = await db.collection("roles").findOne({ _id: user.roleId });
+
+    if (role?.name !== "student") {
+      return res.status(403).json({
+        message: "Apenas alunos podem eliminar as suas candidaturas"
+      });
+    }
+
+    const student = await db.collection("students").findOne({
+      userId: userObjectId
+    });
+
+    if (!student) {
+      return res.status(404).json({ message: "Aluno não encontrado" });
+    }
+
+    const application = await db.collection("applications").findOne({
+      _id: applicationId
+    });
+
+    if (!application) {
+      return res.status(404).json({ message: "Candidatura não encontrada" });
+    }
+
+    if (application.studentId.toString() !== student._id.toString()) {
+      return res.status(403).json({
+        message: "Esta candidatura não pertence a este aluno"
+      });
+    }
+
+    if (application.status !== "pending") {
+      return res.status(400).json({
+        message: "Só é possível eliminar candidaturas pendentes"
+      });
+    }
+
+    const document = application.cvDocumentId
+      ? await db.collection("documents").findOne({ _id: application.cvDocumentId })
+      : null;
+
+    await db.collection("applications").deleteOne({
+      _id: applicationId
+    });
+
+    if (document) {
+      await db.collection("documents").deleteOne({
+        _id: document._id
+      });
+
+      if (document.filePath) {
+        const filePath = path.join(__dirname, document.filePath.replace(/^\//, ""));
+        apagarFicheiro(filePath);
+      }
+    }
+
+    res.json({
+      message: "Candidatura eliminada com sucesso",
+      deletedId: id
+    });
+  } catch (error) {
+    console.error("ERRO AO ELIMINAR CANDIDATURA:", error);
+
+    res.status(500).json({
+      message: "Erro ao eliminar candidatura",
+      error: error.message
+    });
+  }
+});
+
+app.patch("/applications/:id/cv", upload.single("cv"), async (req, res) => {
+  let newDocumentId = null;
+
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    const responderErro = (status, message) => {
+      apagarFicheiro(req.file?.path);
+      return res.status(status).json({ message });
+    };
+
+    if (!ObjectId.isValid(id)) {
+      return responderErro(400, "applicationId inválido");
+    }
+
+    if (!userId || !ObjectId.isValid(userId)) {
+      return responderErro(400, "userId inválido");
+    }
+
+    if (!req.file) {
+      return responderErro(400, "Currículo obrigatório");
+    }
+
+    const applicationId = new ObjectId(id);
+    const userObjectId = new ObjectId(userId);
+
+    const student = await db.collection("students").findOne({
+      userId: userObjectId
+    });
+
+    if (!student) {
+      return responderErro(404, "Aluno não encontrado");
+    }
+
+    const application = await db.collection("applications").findOne({
+      _id: applicationId
+    });
+
+    if (!application) {
+      return responderErro(404, "Candidatura não encontrada");
+    }
+
+    if (application.studentId.toString() !== student._id.toString()) {
+      return responderErro(403, "Esta candidatura não pertence a este aluno");
+    }
+
+    if (application.status !== "pending") {
+      return responderErro(400, "Só é possível editar candidaturas pendentes");
+    }
+
+    const oldDocument = application.cvDocumentId
+      ? await db.collection("documents").findOne({ _id: application.cvDocumentId })
+      : null;
+
+    const newDocument = {
+      fileName: req.file.originalname,
+      filePath: `/uploads/cvs/${req.file.filename}`,
+      fileSize: req.file.size,
+      category: "cv",
+      uploadedAt: new Date()
+    };
+
+    const documentResult = await db.collection("documents").insertOne(newDocument);
+    newDocumentId = documentResult.insertedId;
+
+    await db.collection("applications").updateOne(
+      { _id: applicationId },
+      {
+        $set: {
+          cvDocumentId: newDocumentId,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    if (oldDocument) {
+      await db.collection("documents").deleteOne({
+        _id: oldDocument._id
+      });
+
+      if (oldDocument.filePath) {
+        const oldFilePath = path.join(__dirname, oldDocument.filePath.replace(/^\//, ""));
+        apagarFicheiro(oldFilePath);
+      }
+    }
+
+    res.json({
+      message: "Candidatura atualizada com sucesso",
+      applicationId: id,
+      cvDocumentId: newDocumentId.toString(),
+      cvName: newDocument.fileName,
+      cvPath: newDocument.filePath
+    });
+  } catch (error) {
+    console.error("ERRO AO EDITAR CANDIDATURA:", error);
+
+    if (newDocumentId) {
+      await db.collection("documents").deleteOne({
+        _id: newDocumentId
+      });
+    }
+
+    apagarFicheiro(req.file?.path);
+
+    res.status(500).json({
+      message: "Erro ao editar candidatura",
+      error: error.message
+    });
+  }
+});
+
 connectToMongo().then(() => {
   app.listen(PORT, () => {
     console.log(`Servidor a correr em http://localhost:${PORT}`);
