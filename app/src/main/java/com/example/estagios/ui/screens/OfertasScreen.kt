@@ -30,6 +30,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import com.example.estagios.model.UpdateInternshipOfferRequest
 import com.example.estagios.utils.toTextRequestBody
 import com.example.estagios.utils.uriToMultipart
 import java.text.SimpleDateFormat
@@ -53,14 +54,19 @@ fun OfertasScreen(
     var pesquisa by remember { mutableStateOf("") }
     var ofertaSelecionada by remember { mutableStateOf<InternshipOfferResponse?>(null) }
     var ofertaCandidatura by remember { mutableStateOf<InternshipOfferResponse?>(null) }
+    var ofertaParaEditar by remember { mutableStateOf<InternshipOfferResponse?>(null) }
+    var aEditarOferta by remember { mutableStateOf(false) }
     var cvUri by remember { mutableStateOf<Uri?>(null) }
     var aEnviarCandidatura by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var ofertas by remember { mutableStateOf<List<InternshipOfferResponse>>(emptyList()) }
     var erro by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var ofertasCandidatadas by remember { mutableStateOf<Set<String>>(emptySet()) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    var ofertaParaEliminar by remember { mutableStateOf<InternshipOfferResponse?>(null) }
+    var aEliminarOferta by remember { mutableStateOf(false) }
     val escolherCvLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -77,6 +83,85 @@ fun OfertasScreen(
     fun abrirPopupCandidatura(oferta: InternshipOfferResponse) {
         ofertaCandidatura = oferta
         cvUri = null
+    }
+
+    fun editarOferta(
+        oferta: InternshipOfferResponse,
+        name: String,
+        description: String,
+        requirements: String,
+        durationInMonths: String,
+        totalSpots: String,
+        location: String,
+        workModel: String
+    ) {
+        val offerId = oferta._id
+
+        if (offerId.isNullOrBlank()) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Esta oferta não tem um ID válido")
+            }
+            return
+        }
+
+        val durationNumber = durationInMonths.toIntOrNull()
+        val totalSpotsNumber = totalSpots.toIntOrNull()
+
+        if (
+            name.isBlank() ||
+            description.isBlank() ||
+            requirements.isBlank() ||
+            durationNumber == null ||
+            totalSpotsNumber == null ||
+            location.isBlank()
+        ) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Preenche todos os campos corretamente")
+            }
+            return
+        }
+
+        scope.launch {
+            try {
+                aEditarOferta = true
+
+                val response = RetrofitClient.apiService.updateInternshipOffer(
+                    offerId = offerId,
+                    request = UpdateInternshipOfferRequest(
+                        userId = userId,
+                        name = name,
+                        description = description,
+                        requirements = requirements,
+                        durationInMonths = durationNumber,
+                        totalSpots = totalSpotsNumber,
+                        location = location,
+                        workModel = workModel
+                    )
+                )
+
+                if (response.isSuccessful) {
+                    val ofertaAtualizada = response.body()?.offer
+
+                    if (ofertaAtualizada != null) {
+                        ofertas = ofertas.map {
+                            if (it._id == offerId) ofertaAtualizada else it
+                        }
+                    }
+
+                    ofertaParaEditar = null
+                    snackbarHostState.showSnackbar("Oferta atualizada com sucesso")
+                } else {
+                    val erroBackend = response.errorBody()?.string()
+                    snackbarHostState.showSnackbar(
+                        "Erro ${response.code()}: ${erroBackend ?: "Erro ao editar oferta"}"
+                    )
+                }
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Erro: ${e.message}")
+            } finally {
+                aEditarOferta = false
+            }
+        }
     }
 
     fun submeterCandidatura(oferta: InternshipOfferResponse) {
@@ -121,6 +206,8 @@ fun OfertasScreen(
                 )
 
                 if (response.isSuccessful) {
+                    ofertasCandidatadas = ofertasCandidatadas + offerId
+
                     snackbarHostState.showSnackbar("Candidatura submetida com sucesso")
                     ofertaCandidatura = null
                     cvUri = null
@@ -138,7 +225,48 @@ fun OfertasScreen(
             }
         }
     }
+    fun eliminarOferta(oferta: InternshipOfferResponse) {
+        val offerId = oferta._id
 
+        if (offerId.isNullOrBlank()) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Esta oferta não tem um ID válido")
+            }
+            return
+        }
+
+        scope.launch {
+            try {
+                aEliminarOferta = true
+
+                val response = RetrofitClient.apiService.deleteInternshipOffer(
+                    offerId = offerId,
+                    userId = userId
+                )
+
+                if (response.isSuccessful) {
+                    ofertas = ofertas.filter { it._id != offerId }
+
+                    if (ofertaSelecionada?._id == offerId) {
+                        ofertaSelecionada = null
+                    }
+
+                    ofertaParaEliminar = null
+
+                    snackbarHostState.showSnackbar("Oferta eliminada com sucesso")
+                } else {
+                    val erroBackend = response.errorBody()?.string()
+                    snackbarHostState.showSnackbar(
+                        "Erro ${response.code()}: ${erroBackend ?: "Erro ao eliminar oferta"}"
+                    )
+                }
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Erro: ${e.message}")
+            } finally {
+                aEliminarOferta = false
+            }
+        }
+    }
     LaunchedEffect(userId, minhasOfertas) {
         try {
             isLoading = true
@@ -156,6 +284,15 @@ fun OfertasScreen(
 
             if (response.isSuccessful) {
                 ofertas = response.body() ?: emptyList()
+
+                if (!minhasOfertas && userId.isNotBlank()) {
+                    val candidaturasAluno = RetrofitClient.apiService.getStudentApplications(userId)
+
+                    ofertasCandidatadas = candidaturasAluno
+                        .mapNotNull { it.internshipOfferId }
+                        .toSet()
+                }
+
                 erro = null
             } else {
                 erro = "Erro ${response.code()}: ${response.message()}"
@@ -239,8 +376,11 @@ fun OfertasScreen(
                             OfertaCard(
                                 oferta = oferta,
                                 minhasOfertas = minhasOfertas,
+                                jaCandidatado = ofertasCandidatadas.contains(oferta._id),
                                 onVerDetalhes = { ofertaSelecionada = oferta },
-                                onCandidatar = { abrirPopupCandidatura(oferta) }
+                                onCandidatar = { abrirPopupCandidatura(oferta) },
+                                onEditar = { ofertaParaEditar = oferta },
+                                onEliminar = { ofertaParaEliminar = oferta }
                             )
                         }
                     }
@@ -252,6 +392,7 @@ fun OfertasScreen(
             DetalheOfertaDialog(
                 oferta = oferta,
                 minhasOfertas = minhasOfertas,
+                jaCandidatado = ofertasCandidatadas.contains(oferta._id),
                 onDismiss = { ofertaSelecionada = null },
                 onCandidatar = {
                     ofertaSelecionada = null
@@ -326,6 +467,75 @@ fun OfertasScreen(
                 }
             )
         }
+        ofertaParaEliminar?.let { oferta ->
+            AlertDialog(
+                onDismissRequest = {
+                    if (!aEliminarOferta) {
+                        ofertaParaEliminar = null
+                    }
+                },
+                title = {
+                    Text("Eliminar oferta")
+                },
+                text = {
+                    Text(
+                        "Tens a certeza que queres eliminar esta oferta? Esta ação não pode ser desfeita."
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        enabled = !aEliminarOferta,
+                        onClick = {
+                            eliminarOferta(oferta)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFB00020)
+                        )
+                    ) {
+                        Text(
+                            if (aEliminarOferta) {
+                                "A eliminar..."
+                            } else {
+                                "Eliminar"
+                            }
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !aEliminarOferta,
+                        onClick = {
+                            ofertaParaEliminar = null
+                        }
+                    ) {
+                        Text("Cancelar")
+                    }
+                }
+            )
+        }
+        ofertaParaEditar?.let { oferta ->
+            EditarOfertaDialog(
+                oferta = oferta,
+                aEditar = aEditarOferta,
+                onDismiss = {
+                    if (!aEditarOferta) {
+                        ofertaParaEditar = null
+                    }
+                },
+                onGuardar = { name, description, requirements, durationInMonths, totalSpots, location, workModel ->
+                    editarOferta(
+                        oferta = oferta,
+                        name = name,
+                        description = description,
+                        requirements = requirements,
+                        durationInMonths = durationInMonths,
+                        totalSpots = totalSpots,
+                        location = location,
+                        workModel = workModel
+                    )
+                }
+            )
+        }
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
@@ -334,13 +544,15 @@ fun OfertasScreen(
         )
     }
 }
-
 @Composable
 fun OfertaCard(
     oferta: InternshipOfferResponse,
     minhasOfertas: Boolean,
+    jaCandidatado: Boolean,
     onVerDetalhes: () -> Unit,
-    onCandidatar: () -> Unit
+    onCandidatar: () -> Unit,
+    onEditar: () -> Unit,
+    onEliminar: () -> Unit
 ) {
     val nome = oferta.name ?: "Oferta sem título"
     val empresa = oferta.companyName ?: "Empresa não definida"
@@ -394,24 +606,77 @@ fun OfertaCard(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = onVerDetalhes,
-                modifier = Modifier.weight(1f).height(44.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555))
+        if (minhasOfertas) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Ver detalhes", fontSize = 13.sp)
-            }
-
-            if (!minhasOfertas) {
                 Button(
-                    onClick = onCandidatar,
-                    modifier = Modifier.weight(1f).height(44.dp),
+                    onClick = onVerDetalhes,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
                     shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Azul)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555))
                 ) {
-                    Text("Candidatar", fontSize = 13.sp)
+                    Text("Ver detalhes", fontSize = 13.sp)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onEditar,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Azul)
+                    ) {
+                        Text("Editar", fontSize = 13.sp)
+                    }
+
+                    Button(
+                        onClick = onEliminar,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020))
+                    ) {
+                        Text("Eliminar", fontSize = 13.sp)
+                    }
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = onVerDetalhes,
+                    modifier = if (!jaCandidatado) {
+                        Modifier.weight(1f).height(44.dp)
+                    } else {
+                        Modifier.fillMaxWidth().height(44.dp)
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555))
+                ) {
+                    Text("Ver detalhes", fontSize = 13.sp)
+                }
+
+                if (!jaCandidatado) {
+                    Button(
+                        onClick = onCandidatar,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Azul)
+                    ) {
+                        Text("Candidatar", fontSize = 13.sp)
+                    }
                 }
             }
         }
@@ -441,6 +706,7 @@ fun InfoItem(icon: androidx.compose.ui.graphics.vector.ImageVector, texto: Strin
 fun DetalheOfertaDialog(
     oferta: InternshipOfferResponse,
     minhasOfertas: Boolean,
+    jaCandidatado: Boolean,
     onDismiss: () -> Unit,
     onCandidatar: () -> Unit
 ) {
@@ -536,12 +802,178 @@ fun DetalheOfertaDialog(
                 if (!minhasOfertas) {
                     Button(
                         onClick = onCandidatar,
+                        enabled = !jaCandidatado,
                         modifier = Modifier.weight(1f).height(44.dp),
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Azul)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Azul,
+                            disabledContainerColor = Color(0xFF999999),
+                            disabledContentColor = Color.White
+                        )
                     ) {
-                        Text("Candidatar", fontSize = 13.sp)
+                        Text(
+                            text = if (jaCandidatado) "Candidatado" else "Candidatar",
+                            fontSize = 13.sp
+                        )
                     }
+                }
+            }
+        }
+    }
+}
+@Composable
+fun EditarOfertaDialog(
+    oferta: InternshipOfferResponse,
+    aEditar: Boolean,
+    onDismiss: () -> Unit,
+    onGuardar: (
+        name: String,
+        description: String,
+        requirements: String,
+        durationInMonths: String,
+        totalSpots: String,
+        location: String,
+        workModel: String
+    ) -> Unit
+) {
+    var name by remember { mutableStateOf(oferta.name.orEmpty()) }
+    var description by remember { mutableStateOf(oferta.description.orEmpty()) }
+    var requirements by remember { mutableStateOf(oferta.requirements.orEmpty()) }
+    var durationInMonths by remember {
+        mutableStateOf((oferta.durationInMonths ?: 0).toString())
+    }
+    var totalSpots by remember {
+        mutableStateOf((oferta.totalSpots ?: 0).toString())
+    }
+    var location by remember { mutableStateOf(oferta.location.orEmpty()) }
+    var workModel by remember { mutableStateOf(oferta.workModel ?: "Presencial") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White, RoundedCornerShape(20.dp))
+                .padding(18.dp)
+        ) {
+            Text(
+                text = "Editar oferta",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = Azul
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Título") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Descrição") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = requirements,
+                onValueChange = { requirements = it },
+                label = { Text("Requisitos") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = durationInMonths,
+                    onValueChange = { durationInMonths = it },
+                    label = { Text("Duração") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = totalSpots,
+                    onValueChange = { totalSpots = it },
+                    label = { Text("Vagas") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = location,
+                onValueChange = { location = it },
+                label = { Text("Localização") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = workModel,
+                onValueChange = { workModel = it },
+                label = { Text("Modelo de trabalho") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = onDismiss,
+                    enabled = !aEditar,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555))
+                ) {
+                    Text("Cancelar", fontSize = 13.sp)
+                }
+
+                Button(
+                    onClick = {
+                        onGuardar(
+                            name,
+                            description,
+                            requirements,
+                            durationInMonths,
+                            totalSpots,
+                            location,
+                            workModel
+                        )
+                    },
+                    enabled = !aEditar,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Azul)
+                ) {
+                    Text(
+                        if (aEditar) {
+                            "A guardar..."
+                        } else {
+                            "Guardar"
+                        },
+                        fontSize = 13.sp
+                    )
                 }
             }
         }

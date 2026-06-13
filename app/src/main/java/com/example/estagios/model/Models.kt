@@ -168,7 +168,9 @@ data class InternshipOfferResponse(
     val description: String? = null,
     val requirements: String? = null,
     val totalSpots: Int? = null,
-    val durationInMonths: Int? = null
+    val durationInMonths: Int? = null,
+    val hasApplied: Boolean = false,
+    val applicationStatus: String? = null
 )
 
 data class CreateInternshipOfferRequest(
@@ -202,4 +204,26 @@ data class CompanyDashboardStatsResponse(
     val offers: Int = 0,
     val receivedApplications: Int = 0,
     val pendingApplications: Int = 0
+)
+
+data class DeleteOfferResponse(
+    val message: String,
+    val deletedId: String? = null
+)
+
+data class UpdateInternshipOfferRequest(
+    val userId: String,
+    val name: String,
+    val description: String,
+    val requirements: String,
+    val durationInMonths: Int,
+    val totalSpots: Int,
+    val applicationDeadline: String? = null,
+    val location: String,
+    val workModel: String
+)
+
+data class UpdateInternshipOfferResponse(
+    val message: String,
+    val offer: InternshipOfferResponse
 )

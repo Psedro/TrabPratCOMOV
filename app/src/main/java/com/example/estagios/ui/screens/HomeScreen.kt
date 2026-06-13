@@ -100,8 +100,9 @@ fun HomeScreen(
         )
 
         TipoUtilizador.DOCENTE -> listOf(
-            stringResource(R.string.stats_ofertas) to "0",
-            stringResource(R.string.stats_candidaturas_recebidas) to "0"
+            "Pedidos de orientação" to "0",
+            "Estágios orientados" to "0",
+            stringResource(R.string.stats_mensagens_novas) to "0"
         )
 
         TipoUtilizador.EMPRESA -> listOf(

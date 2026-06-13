@@ -23,6 +23,8 @@ import com.example.estagios.data.remote.ApplicationConversationResponse
 import com.example.estagios.data.remote.ApplicationMessageResponse
 import com.example.estagios.data.remote.RetrofitClient
 import com.example.estagios.data.remote.SendApplicationMessageRequest
+import com.example.estagios.ui.common.ProfileTopBar
+import com.example.estagios.ui.theme.Azul
 import kotlinx.coroutines.launch
 
 private val AzulMensagens = Color(0xFF2B5CE6)
@@ -125,28 +127,23 @@ fun MensagensScreen(
             .fillMaxSize()
             .background(Color(0xFFF2F2F7))
     ) {
-        TopBarMensagens(
-            titulo = if (conversaSelecionada == null) {
-                "MENSAGENS"
+        ProfileTopBar(
+            nome = nomeUtilizador.uppercase(),
+            mostrarNotificacoes = false,
+            onVoltar = onVoltar,
+            onLogout = onLogout
+        )
+
+        Text(
+            text = if (tipoUtilizador == TipoUtilizador.DOCENTE) {
+                "PEDIDOS DE ORIENTAÇÃO"
             } else {
-                conversaSelecionada?.offerTitle ?: "MENSAGENS"
+                "CANDIDATURAS"
             },
-            subtitulo = if (conversaSelecionada == null) {
-                nomeUtilizador
-            } else {
-                obterNomeConversa(conversaSelecionada, tipoUtilizador)
-            },
-            inicialPerfil = obterIniciais(nomeUtilizador).take(1),
-            onVoltar = {
-                if (conversaSelecionada != null) {
-                    conversaSelecionada = null
-                    mensagens = emptyList()
-                    textoMensagem = ""
-                    erro = null
-                } else {
-                    onVoltar()
-                }
-            }
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            color = Azul
         )
 
         if (conversaSelecionada == null) {
@@ -327,62 +324,6 @@ fun MensagensScreen(
     }
 }
 
-@Composable
-fun TopBarMensagens(
-    titulo: String,
-    subtitulo: String?,
-    inicialPerfil: String,
-    onVoltar: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFFF2F2F7))
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onVoltar) {
-            Text("‹", fontSize = 30.sp, fontWeight = FontWeight.Light)
-        }
-
-        Spacer(modifier = Modifier.width(4.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = titulo.uppercase(),
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                letterSpacing = 0.5.sp,
-                maxLines = 1
-            )
-
-            if (!subtitulo.isNullOrBlank()) {
-                Text(
-                    text = subtitulo,
-                    color = TextoSecundarioMensagens,
-                    fontSize = 12.sp,
-                    maxLines = 1
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFDDDDDD)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = inicialPerfil.ifBlank { "?" },
-                fontWeight = FontWeight.Bold,
-                color = Color.Gray
-            )
-        }
-
-        Spacer(modifier = Modifier.width(8.dp))
-    }
-}
 
 @Composable
 fun ConversaCard(
