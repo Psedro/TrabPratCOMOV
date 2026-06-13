@@ -189,6 +189,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                 OfertasScreen(
                     nomeUtilizador = nomeUtilizador.ifBlank { "ALUNO" },
                     userId = userId,
+                    tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
                     minhasOfertas = false,
                     onVoltar = {
                         navController.popBackStack()
@@ -208,6 +209,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                 OfertasScreen(
                     nomeUtilizador = nomeUtilizador.ifBlank { "EMPRESA" },
                     userId = userId,
+                    tipoUtilizador = tipoUtilizador ?: TipoUtilizador.ALUNO,
                     minhasOfertas = true,
                     onVoltar = {
                         navController.popBackStack()
