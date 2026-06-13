@@ -29,6 +29,7 @@ fun ProfileTopBar(
 ) {
     var menuAberto by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val abrirPerfil = LocalAbrirPerfil.current
 
     Row(
         modifier = Modifier
@@ -81,7 +82,7 @@ fun ProfileTopBar(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = nome.firstOrNull()?.uppercase() ?: "P",
+                    text = nome.firstOrNull()?.uppercase() ?: "?",
                     fontWeight = FontWeight.Bold,
                     color = Color.Gray
                 )
@@ -91,6 +92,16 @@ fun ProfileTopBar(
                 expanded = menuAberto,
                 onDismissRequest = { menuAberto = false }
             ) {
+                DropdownMenuItem(
+                    text = {
+                        Text("Perfil")
+                    },
+                    onClick = {
+                        menuAberto = false
+                        abrirPerfil()
+                    }
+                )
+
                 DropdownMenuItem(
                     text = {
                         Text(stringResource(R.string.language_english))
