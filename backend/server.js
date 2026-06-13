@@ -593,14 +593,22 @@ app.get("/student-applications", async (req, res) => {
       {
         $project: {
           _id: { $toString: "$_id" },
+
+          internshipOfferId: {
+            $toString: "$internshipOfferId"
+          },
+
           status: 1,
           appliedDate: 1,
+
           cvName: {
             $ifNull: ["$cvDocument.fileName", "Sem currículo"]
           },
+
           cvPath: {
             $ifNull: ["$cvDocument.filePath", null]
           },
+
           offerTitle: "$offer.name",
           companyName: "$offer.companyName",
           offerDescription: "$offer.description",
@@ -1055,77 +1063,77 @@ app.post("/api/auth/register", async (req, res) => {
     }
 
     if (tipo === "teacher") {
-  console.log("VOU INSERIR TEACHER");
+      console.log("VOU INSERIR TEACHER");
 
-  try {
-    const departmentName = professor.departamento.trim();
+      try {
+        const departmentName = professor.departamento.trim();
 
-    let faculty = await db.collection("faculties").findOne({
-      name: departmentName
-    });
+        let faculty = await db.collection("faculties").findOne({
+          name: departmentName
+        });
 
-    if (!faculty) {
-      console.log("FACULDADE NÃO EXISTE, VOU CRIAR:", departmentName);
+        if (!faculty) {
+          console.log("FACULDADE NÃO EXISTE, VOU CRIAR:", departmentName);
 
-      const address = {
-        street: "Morada não definida",
-        buildingNumber: "S/N",
-        city: "Cidade não definida",
-        postalCode: "0000-000",
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+          const address = {
+            street: "Morada não definida",
+            buildingNumber: "S/N",
+            city: "Cidade não definida",
+            postalCode: "0000-000",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
 
-      const addressResult = await db.collection("addresses").insertOne(address);
+          const addressResult = await db.collection("addresses").insertOne(address);
 
-      console.log("ADDRESS DA FACULDADE CRIADO:", addressResult.insertedId.toString());
+          console.log("ADDRESS DA FACULDADE CRIADO:", addressResult.insertedId.toString());
 
-      const facultyResult = await db.collection("faculties").insertOne({
-        name: departmentName,
-        addressId: addressResult.insertedId,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
+          const facultyResult = await db.collection("faculties").insertOne({
+            name: departmentName,
+            addressId: addressResult.insertedId,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
 
-      faculty = {
-        _id: facultyResult.insertedId,
-        name: departmentName,
-        addressId: addressResult.insertedId
-      };
+          faculty = {
+            _id: facultyResult.insertedId,
+            name: departmentName,
+            addressId: addressResult.insertedId
+          };
 
-      console.log("FACULDADE CRIADA:", faculty._id.toString());
+          console.log("FACULDADE CRIADA:", faculty._id.toString());
+        }
+
+        const teacherData = {
+          userId: userId,
+          academicTitle: "Professor",
+          facultyId: faculty._id,
+
+          // Mantemos isto se o schema aceitar campos extra
+          teacherNumber: Number(professor.numeroProfessor),
+
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        console.log("DADOS A INSERIR EM TEACHERS:", teacherData);
+
+        const resultTeacher = await db.collection("teachers").insertOne(teacherData);
+
+        console.log("TEACHER INSERIDO COM ID:", resultTeacher.insertedId.toString());
+      } catch (err) {
+        console.error("ERRO AO INSERIR TEACHER:", err);
+        console.error("ERRO TEACHER MESSAGE:", err.message);
+        console.error("ERRO TEACHER CODE:", err.code);
+        console.error("ERRO TEACHER INFO:", JSON.stringify(err.errInfo, null, 2));
+
+        await db.collection("users").deleteOne({
+          _id: userId
+        });
+
+        throw err;
+      }
     }
-
-    const teacherData = {
-      userId: userId,
-      academicTitle: "Professor",
-      facultyId: faculty._id,
-
-      // Mantemos isto se o schema aceitar campos extra
-      teacherNumber: Number(professor.numeroProfessor),
-
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    console.log("DADOS A INSERIR EM TEACHERS:", teacherData);
-
-    const resultTeacher = await db.collection("teachers").insertOne(teacherData);
-
-    console.log("TEACHER INSERIDO COM ID:", resultTeacher.insertedId.toString());
-  } catch (err) {
-    console.error("ERRO AO INSERIR TEACHER:", err);
-    console.error("ERRO TEACHER MESSAGE:", err.message);
-    console.error("ERRO TEACHER CODE:", err.code);
-    console.error("ERRO TEACHER INFO:", JSON.stringify(err.errInfo, null, 2));
-
-    await db.collection("users").deleteOne({
-      _id: userId
-    });
-
-    throw err;
-  }
-}
     if (tipo === "company") {
       const company = {
         ownerUserId: userId,
@@ -2116,8 +2124,8 @@ async function obterDadosAplicacao(applicationId) {
 
   const studentUser = student
     ? await db.collection("users").findOne({
-        _id: student.userId
-      })
+      _id: student.userId
+    })
     : null;
 
   return {
@@ -2642,6 +2650,296 @@ app.post("/applications/:id/messages", async (req, res) => {
 
     res.status(500).json({
       message: "Erro ao enviar mensagem",
+      error: error.message
+    });
+  }
+});
+
+app.delete("/internship-offers/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "offerId inválido"
+      });
+    }
+
+    if (!userId || !ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    const offerId = new ObjectId(id);
+    const ownerUserId = new ObjectId(userId);
+
+    const user = await db.collection("users").findOne({
+      _id: ownerUserId
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
+      });
+    }
+
+    const role = await db.collection("roles").findOne({
+      _id: user.roleId
+    });
+
+    if (role?.name !== "company") {
+      return res.status(403).json({
+        message: "Apenas empresas podem eliminar ofertas"
+      });
+    }
+
+    const company = await db.collection("companies").findOne({
+      ownerUserId: ownerUserId
+    });
+
+    if (!company) {
+      return res.status(404).json({
+        message: "Empresa não encontrada"
+      });
+    }
+
+    const offer = await db.collection("internshipOffers").findOne({
+      _id: offerId
+    });
+
+    if (!offer) {
+      return res.status(404).json({
+        message: "Oferta não encontrada"
+      });
+    }
+
+    const companyLocations = await db.collection("companyLocations").find({
+      $or: [
+        { companyId: company._id },
+        { companyId: company._id.toString() },
+        { company_id: company._id },
+        { company_id: company._id.toString() }
+      ]
+    }).toArray();
+
+    const companyLocationIds = companyLocations.flatMap(location => [
+      location._id,
+      location._id.toString()
+    ]);
+
+    const ofertaPertenceEmpresa =
+      offer.companyName === company.name ||
+      companyLocationIds.some(locationId =>
+        locationId?.toString() === offer.companyLocationId?.toString() ||
+        locationId?.toString() === offer.company_location_id?.toString()
+      );
+
+    if (!ofertaPertenceEmpresa) {
+      return res.status(403).json({
+        message: "Esta oferta não pertence à empresa logada"
+      });
+    }
+
+    const candidaturasAssociadas = await db.collection("applications").countDocuments({
+      $or: [
+        { internshipOfferId: offerId },
+        { internshipOfferId: offerId.toString() },
+        { internship_offer_id: offerId },
+        { internship_offer_id: offerId.toString() }
+      ]
+    });
+
+    if (candidaturasAssociadas > 0) {
+      return res.status(409).json({
+        message: "Não é possível eliminar esta oferta porque já tem candidaturas associadas"
+      });
+    }
+
+    await db.collection("internshipOffers").deleteOne({
+      _id: offerId
+    });
+
+    res.json({
+      message: "Oferta eliminada com sucesso",
+      deletedId: offerId.toString()
+    });
+  } catch (error) {
+    console.error("ERRO AO ELIMINAR OFERTA:", error);
+
+    res.status(500).json({
+      message: "Erro ao eliminar oferta",
+      error: error.message
+    });
+  }
+});
+
+app.patch("/internship-offers/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      userId,
+      name,
+      description,
+      requirements,
+      durationInMonths,
+      totalSpots,
+      applicationDeadline,
+      location,
+      workModel
+    } = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "offerId inválido"
+      });
+    }
+
+    if (!userId || !ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        message: "userId inválido"
+      });
+    }
+
+    if (!name || !description || !requirements || !durationInMonths || !totalSpots || !location) {
+      return res.status(400).json({
+        message: "Campos obrigatórios em falta"
+      });
+    }
+
+    const offerId = new ObjectId(id);
+    const ownerUserId = new ObjectId(userId);
+
+    const user = await db.collection("users").findOne({
+      _id: ownerUserId
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Utilizador não encontrado"
+      });
+    }
+
+    const role = await db.collection("roles").findOne({
+      _id: user.roleId
+    });
+
+    if (role?.name !== "company") {
+      return res.status(403).json({
+        message: "Apenas empresas podem editar ofertas"
+      });
+    }
+
+    const company = await db.collection("companies").findOne({
+      ownerUserId: ownerUserId
+    });
+
+    if (!company) {
+      return res.status(404).json({
+        message: "Empresa não encontrada"
+      });
+    }
+
+    const offer = await db.collection("internshipOffers").findOne({
+      _id: offerId
+    });
+
+    if (!offer) {
+      return res.status(404).json({
+        message: "Oferta não encontrada"
+      });
+    }
+
+    const companyLocations = await db.collection("companyLocations").find({
+      $or: [
+        { companyId: company._id },
+        { companyId: company._id.toString() },
+        { company_id: company._id },
+        { company_id: company._id.toString() }
+      ]
+    }).toArray();
+
+    const companyLocationIds = companyLocations.flatMap(locationItem => [
+      locationItem._id,
+      locationItem._id.toString()
+    ]);
+
+    const ofertaPertenceEmpresa =
+      offer.companyName === company.name ||
+      companyLocationIds.some(locationId =>
+        locationId?.toString() === offer.companyLocationId?.toString() ||
+        locationId?.toString() === offer.company_location_id?.toString()
+      );
+
+    if (!ofertaPertenceEmpresa) {
+      return res.status(403).json({
+        message: "Esta oferta não pertence à empresa logada"
+      });
+    }
+
+    const durationNumber = Number(durationInMonths);
+    const totalSpotsNumber = Number(totalSpots);
+
+    if (isNaN(durationNumber)) {
+      return res.status(400).json({
+        message: "durationInMonths inválido"
+      });
+    }
+
+    if (isNaN(totalSpotsNumber)) {
+      return res.status(400).json({
+        message: "totalSpots inválido"
+      });
+    }
+
+    const updateData = {
+      name: name.trim(),
+      description: description.trim(),
+      requirements: requirements.trim(),
+      durationInMonths: durationNumber,
+      totalSpots: totalSpotsNumber,
+      location: location.trim(),
+      workModel: workModel?.trim() || offer.workModel || "Presencial",
+      updatedAt: new Date()
+    };
+
+    if (applicationDeadline) {
+      const deadlineDate = new Date(applicationDeadline);
+
+      if (isNaN(deadlineDate.getTime())) {
+        return res.status(400).json({
+          message: "applicationDeadline inválido"
+        });
+      }
+
+      updateData.applicationDeadline = deadlineDate;
+    }
+
+    await db.collection("internshipOffers").updateOne(
+      { _id: offerId },
+      {
+        $set: updateData
+      }
+    );
+
+    const updatedOffer = await db.collection("internshipOffers").findOne({
+      _id: offerId
+    });
+
+    res.json({
+      message: "Oferta atualizada com sucesso",
+      offer: {
+        ...updatedOffer,
+        _id: updatedOffer._id.toString()
+      }
+    });
+  } catch (error) {
+    console.error("ERRO AO EDITAR OFERTA:", error);
+
+    res.status(500).json({
+      message: "Erro ao editar oferta",
       error: error.message
     });
   }

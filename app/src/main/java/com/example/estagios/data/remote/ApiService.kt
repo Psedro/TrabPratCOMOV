@@ -13,13 +13,17 @@ import retrofit2.http.POST
 import retrofit2.http.PATCH
 import retrofit2.http.Path
 import com.example.estagios.model.CreateInternshipOfferRequest
+import com.example.estagios.model.DeleteOfferResponse
 import com.example.estagios.model.InternshipOfferResponse
 import com.example.estagios.model.StudentDashboardStatsResponse
+import com.example.estagios.model.UpdateInternshipOfferRequest
+import com.example.estagios.model.UpdateInternshipOfferResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.http.Multipart
 import retrofit2.http.Part
 import retrofit2.http.Query
+import retrofit2.http.DELETE
 
 interface ApiService {
 
@@ -124,4 +128,16 @@ interface ApiService {
         @Path("id") requestId: String,
         @Body request: UpdateSupervisionRequestStatusRequest
     ): UpdateSupervisionRequestStatusResponse
+
+    @DELETE("internship-offers/{id}")
+    suspend fun deleteInternshipOffer(
+        @Path("id") offerId: String,
+        @Query("userId") userId: String
+    ): Response<DeleteOfferResponse>
+
+    @PATCH("internship-offers/{id}")
+    suspend fun updateInternshipOffer(
+        @Path("id") offerId: String,
+        @Body request: UpdateInternshipOfferRequest
+    ): Response<UpdateInternshipOfferResponse>
 }

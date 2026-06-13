@@ -30,6 +30,7 @@ import com.example.estagios.data.remote.TeacherResponse
 import com.example.estagios.data.remote.UpdateApplicationStatusRequest
 import com.example.estagios.data.remote.UpdateSupervisionRequestStatusRequest
 import kotlinx.coroutines.launch
+import com.example.estagios.ui.common.ProfileTopBar
 
 private val Azul = Color(0xFF2B5CE6)
 private val TextoEmpresa = Color(0xFF555555)
@@ -218,14 +219,23 @@ fun CandidaturasScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            TopBarCandidaturas(
-                titulo = if (tipoUtilizador == TipoUtilizador.DOCENTE) {
+            ProfileTopBar(
+                nome = nomeUtilizador.uppercase(),
+                mostrarNotificacoes = false,
+                onVoltar = onVoltar,
+                onLogout = onLogout
+            )
+
+            Text(
+                text = if (tipoUtilizador == TipoUtilizador.DOCENTE) {
                     "PEDIDOS DE ORIENTAÇÃO"
                 } else {
                     "CANDIDATURAS"
                 },
-                nome = nomeUtilizador.uppercase(),
-                onVoltar = onVoltar
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = Azul
             )
 
             OutlinedTextField(
@@ -1010,58 +1020,6 @@ fun EstadoBadge(status: String) {
     }
 }
 
-@Composable
-fun TopBarCandidaturas(
-    titulo: String,
-    nome: String,
-    onVoltar: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White)
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onVoltar) {
-            Text("‹", fontSize = 30.sp, fontWeight = FontWeight.Light)
-        }
-
-        Spacer(modifier = Modifier.width(4.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = titulo,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                letterSpacing = 0.5.sp,
-                maxLines = 1
-            )
-
-            Text(
-                text = nome,
-                color = Color(0xFF777777),
-                fontSize = 12.sp,
-                maxLines = 1
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(Color(0xFFDDDDDD), RoundedCornerShape(50.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = nome.take(1).ifBlank { "?" },
-                fontWeight = FontWeight.Bold,
-                color = Color.Gray
-            )
-        }
-
-        Spacer(modifier = Modifier.width(8.dp))
-    }
-}
 
 private fun estadoTexto(status: String): String {
     return when (status) {

@@ -10,7 +10,7 @@ data class StudentApplicationResponse(
     val companyName: String?,
     val offerDescription: String?,
     val location: String?,
-
+    val internshipOfferId: String? = null,
     // Estes só vêm quando o login é empresa
     val studentName: String? = null,
     val studentEmail: String? = null
